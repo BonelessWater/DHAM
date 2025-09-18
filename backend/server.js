@@ -5,18 +5,68 @@ const morgan = require('morgan');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8000; // Changed to port 8000
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000', 
+    'http://localhost:5173', 
+    'http://127.0.0.1:5173',
+    'http://10.0.2.2:8000', // Android emulator
+    'http://localhost:8000'  // Flutter web
+  ],
+  credentials: true
+}));
 app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'DHAM API is running' });
+  res.json({ 
+    status: 'OK', 
+    message: 'DHAM API is running on port 8000',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Test API endpoint
+app.get('/api/test', (req, res) => {
+  res.json({
+    message: 'Frontend-Backend connection successful!',
+    data: {
+      server: 'Express.js',
+      port: PORT,
+      environment: process.env.NODE_ENV || 'development'
+    }
+  });
+});
+
+// Sample data endpoint
+app.get('/api/users', (req, res) => {
+  res.json({
+    users: [
+      { id: 1, name: 'John Doe', email: 'john@example.com' },
+      { id: 2, name: 'Jane Smith', email: 'jane@example.com' },
+      { id: 3, name: 'Bob Johnson', email: 'bob@example.com' }
+    ]
+  });
+});
+
+// POST endpoint for testing
+app.post('/api/users', (req, res) => {
+  const { name, email } = req.body;
+  res.json({
+    message: 'User created successfully',
+    user: {
+      id: Date.now(),
+      name,
+      email,
+      createdAt: new Date().toISOString()
+    }
+  });
 });
 
 // Error handling middleware
@@ -26,7 +76,9 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`DHAM API server running on port ${PORT}`);
+  console.log(`🚀 DHAM API server running on port ${PORT}`);
+  console.log(`📡 Health check: http://localhost:${PORT}/health`);
+  console.log(`🧪 Test endpoint: http://localhost:${PORT}/api/test`);
 });
 
 module.exports = app;

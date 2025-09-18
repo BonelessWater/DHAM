@@ -1,0 +1,46 @@
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dham-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=development
+      - PORT=8000
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - dham-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Add database service
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: dham-postgres
+  #   environment:
+  #     POSTGRES_DB: dham_db
+  #     POSTGRES_USER: your_username
+  #     POSTGRES_PASSWORD: your_password
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - dham-network
+
+networks:
+  dham-network:
+    driver: bridge
+
+# volumes:
+#   postgres_data:
