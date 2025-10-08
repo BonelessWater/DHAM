@@ -2,13 +2,18 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 8000; // Changed to port 8000
+const PORT = process.env.PORT || 8000;
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable for Flutter web assets
+  crossOriginEmbedderPolicy: false
+}));
+
 app.use(cors({
   origin: [
     'http://localhost:3000', 
@@ -19,11 +24,15 @@ app.use(cors({
   ],
   credentials: true
 }));
+
 app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
+// Serve Flutter static files from 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// API Routes
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
@@ -69,6 +78,12 @@ app.post('/api/users', (req, res) => {
   });
 });
 
+// Catch-all route - MUST BE LAST
+// This handles Flutter web routing (SPA)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -79,6 +94,7 @@ app.listen(PORT, () => {
   console.log(`🚀 DHAM API server running on port ${PORT}`);
   console.log(`📡 Health check: http://localhost:${PORT}/health`);
   console.log(`🧪 Test endpoint: http://localhost:${PORT}/api/test`);
+  console.log(`🎨 Flutter app: http://localhost:${PORT}/`);
 });
 
 module.exports = app;
