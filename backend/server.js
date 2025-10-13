@@ -80,7 +80,7 @@ app.post('/api/users', (req, res) => {
 
 // Catch-all route - MUST BE LAST
 // This handles Flutter web routing (SPA)
-app.get('*', (req, res) => {
+app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
