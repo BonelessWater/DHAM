@@ -11,7 +11,7 @@ COPY package*.json ./
 RUN npm ci --only=production
 
 # Copy application code
-COPY . .
+COPY backend/ ./
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs
