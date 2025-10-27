@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'api_test_screen.dart';
 
 // Mock restaurant model
 class Restaurant {
@@ -51,7 +52,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _logout() {
     // Placeholder logout logic; later replace with FirebaseAuth signOut
-    Navigator.pop(context);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const ApiTestScreen()),
+      );
   }
 
   void _openMap(Restaurant restaurant) {
@@ -100,6 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.logout),
+              tooltip: 'Logout', // Add hover text
               onPressed: _logout,
             ),
           ],
