@@ -1,6 +1,7 @@
 // lib/screens/api_test_screen.dart
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'home_screen.dart';
 
 class ApiTestScreen extends StatefulWidget {
   const ApiTestScreen({Key? key}) : super(key: key);
@@ -169,6 +170,28 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
               ),
             ),
             
+            const SizedBox(height: 16),
+
+            // Home Button (bypass login)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HomeScreen()),
+                  );
+                },
+                icon: const Icon(Icons.home),
+                label: const Text('Go to Home (bypass login)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.yellow,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+
+
             const SizedBox(height: 16),
             
             // Connection status
