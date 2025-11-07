@@ -1,0 +1,54 @@
+name: Build and SonarQube Analysis
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  sonarqube:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+      - name: Set up Node.js version
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22.x'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      # Build backend
+      - name: Build Backend
+        run: |
+          cd backend
+          npm install
+          npm run build --if-present
+
+      # Build Flutter web
+      - name: Build Flutter Frontend
+        run: |
+          cd frontend
+          flutter pub get
+          flutter build web --release
+
+      # Copy Flutter build to backend public folder (optional for analysis)
+      - name: Copy Flutter web to backend
+        run: |
+          mkdir -p backend/public
+          cp -r frontend/build/web/* backend/public/
+
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
