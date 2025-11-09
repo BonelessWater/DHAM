@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'api_test_screen.dart';
 import 'search_screen.dart';
+import 'profile_screen.dart';
 
 // Mock restaurant model
 class Restaurant {
@@ -8,12 +9,14 @@ class Restaurant {
   final double stars;
   final String location;
   final List<String> reviews;
+  bool isLiked;
 
   Restaurant({
     required this.name,
     required this.stars,
     required this.location,
     this.reviews = const [],
+    this.isLiked = false,
   });
 }
 
@@ -101,6 +104,19 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             IconButton(
+              icon: const Icon(Icons.person),
+              tooltip: 'Profile',
+              onPressed: () {
+                final likedRestaurants = _restaurants.where((r) => r.isLiked).toList();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProfileScreen(likedRestaurants: likedRestaurants),
+                  ),
+                );
+              },
+            ),
+            IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Logout',
               onPressed: _logout,
@@ -151,6 +167,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   IconButton(
                     icon: const Icon(Icons.rate_review),
                     onPressed: () => _openReviews(restaurant),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      restaurant.isLiked ? Icons.favorite : Icons.favorite_border,
+                      color: Colors.red,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        restaurant.isLiked = !restaurant.isLiked;
+                      });
+                    },
                   ),
                 ],
               ),
