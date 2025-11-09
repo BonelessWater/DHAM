@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'api_test_screen.dart';
+import 'search_screen.dart';
 
 // Mock restaurant model
 class Restaurant {
   final String name;
   final double stars;
-  final String location; // just a placeholder
+  final String location;
   final List<String> reviews;
 
   Restaurant({
@@ -25,50 +26,38 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   // Mock restaurant list
-  List<Restaurant> _restaurants = [
+  final List<Restaurant> _restaurants = [
     Restaurant(name: 'Pizza Palace', stars: 4.5, location: '123 Main St'),
     Restaurant(name: 'Sushi Spot', stars: 5.0, location: '456 Elm St'),
     Restaurant(name: 'Burger Barn', stars: 3.5, location: '789 Oak St'),
+    Restaurant(name: 'Taco Tower', stars: 4.0, location: '222 Pine St'),
   ];
 
-  List<Restaurant> _filteredRestaurants = [];
-  final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredRestaurants = _restaurants;
-    _searchController.addListener(_filterRestaurants);
-  }
-
-  void _filterRestaurants() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      _filteredRestaurants = _restaurants
-          .where((r) => r.name.toLowerCase().contains(query))
-          .toList();
-    });
-  }
-
   void _logout() {
-    // Placeholder logout logic; later replace with FirebaseAuth signOut
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const ApiTestScreen()),
-      );
+    );
   }
 
   void _openMap(Restaurant restaurant) {
-    // Placeholder; later open Google Maps / MapView
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Show map for ${restaurant.name}')),
     );
   }
 
   void _openReviews(Restaurant restaurant) {
-    // Placeholder; later open review page or modal
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Open reviews for ${restaurant.name}')),
+    );
+  }
+
+  void _openSearchScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SearchScreen(allRestaurants: _restaurants),
+      ),
     );
   }
 
@@ -82,93 +71,93 @@ class _HomeScreenState extends State<HomeScreen> {
             IconButton(
               icon: const Icon(Icons.home),
               onPressed: () {
-                // Optional: scroll to top
+                // Already home, could refresh or scroll to top
               },
             ),
+            // Instead of a TextField, this is a tappable "fake" search bar
             Expanded(
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search restaurants',
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(
-                      vertical: 8, horizontal: 12),
-                  border: OutlineInputBorder(
+              child: GestureDetector(
+                onTap: _openSearchScreen,
+                child: Container(
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
+                    border: Border.all(color: Colors.grey.shade300),
                   ),
-                  prefixIcon: const Icon(Icons.search),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    children: const [
+                      Icon(Icons.search, color: Colors.grey),
+                      SizedBox(width: 8),
+                      Text(
+                        'Search restaurants...',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
             IconButton(
               icon: const Icon(Icons.logout),
-              tooltip: 'Logout', // Add hover text
+              tooltip: 'Logout',
               onPressed: _logout,
             ),
           ],
         ),
       ),
-      body: _filteredRestaurants.isEmpty
-          ? const Center(child: Text('No restaurants found'))
-          : ListView.builder(
-              itemCount: _filteredRestaurants.length,
-              itemBuilder: (context, index) {
-                final restaurant = _filteredRestaurants[index];
-                return Card(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Row(
+      body: ListView.builder(
+        itemCount: _restaurants.length,
+        itemBuilder: (context, index) {
+          final restaurant = _restaurants[index];
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                restaurant.name,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Row(
-                                children: List.generate(
-                                  5,
-                                  (i) => Icon(
-                                    i < restaurant.stars
-                                        ? Icons.star
-                                        : Icons.star_border,
-                                    color: Colors.amber,
-                                    size: 18,
-                                  ),
-                                ),
-                              ),
-                            ],
+                        Text(
+                          restaurant.name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.map),
-                          onPressed: () => _openMap(restaurant),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.rate_review),
-                          onPressed: () => _openReviews(restaurant),
+                        Row(
+                          children: List.generate(
+                            5,
+                            (i) => Icon(
+                              i < restaurant.stars
+                                  ? Icons.star
+                                  : Icons.star_border,
+                              color: Colors.amber,
+                              size: 18,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                );
-              },
+                  IconButton(
+                    icon: const Icon(Icons.map),
+                    onPressed: () => _openMap(restaurant),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.rate_review),
+                    onPressed: () => _openReviews(restaurant),
+                  ),
+                ],
+              ),
             ),
+          );
+        },
+      ),
     );
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 }
