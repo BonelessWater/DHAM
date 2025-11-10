@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart';
+import 'restaurant_detail_screen.dart';
+import 'home_screen.dart'; // For the Restaurant model
 
 class ProfileScreen extends StatelessWidget {
   final List<Restaurant> likedRestaurants;
@@ -12,40 +13,65 @@ class ProfileScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Profile'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Settings', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            const Text('Profile Picture, Notifications, Change Password (placeholders)'),
-            const Divider(height: 32),
-            const Text('Liked Restaurants', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            likedRestaurants.isEmpty
-                ? const Text('You haven\'t liked any restaurants yet.')
-                : Expanded(
-                    child: ListView.builder(
-                      itemCount: likedRestaurants.length,
-                      itemBuilder: (context, index) {
-                        final restaurant = likedRestaurants[index];
-                        return ListTile(
-                          title: Text(restaurant.name),
-                          subtitle: Row(
-                            children: List.generate(
-                              5,
-                              (i) => Icon(
-                                i < restaurant.stars ? Icons.star : Icons.star_border,
-                                color: Colors.amber,
-                                size: 16,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+            // Settings Section
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('Settings'),
+              onTap: () {
+                // Placeholder action
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Settings placeholder')),
+                );
+              },
+            ),
+            const Divider(),
+
+            // Liked Restaurants Label
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Text(
+                'Liked Restaurants',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+            // Liked Restaurants List
+            if (likedRestaurants.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text('No liked restaurants yet'),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: likedRestaurants.length,
+                itemBuilder: (context, index) {
+                  final restaurant = likedRestaurants[index];
+                  return ListTile(
+                    title: Text(restaurant.name),
+                    trailing: Icon(
+                      restaurant.isLiked ? Icons.favorite : Icons.favorite_border,
+                      color: Colors.red,
                     ),
-                  ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => RestaurantDetailScreen(restaurant: restaurant),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
           ],
         ),
       ),
