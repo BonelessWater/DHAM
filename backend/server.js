@@ -5,6 +5,18 @@ const morgan = require('morgan');
 const path = require('path');
 require('dotenv').config();
 
+// Import database models and sync function
+const { syncDatabase } = require('./models');
+
+// Import routes
+const restaurantsRouter = require('./routes/restaurants');
+const favoritesRouter = require('./routes/favorites');
+const reviewsRouter = require('./routes/reviews');
+const discussionsRouter = require('./routes/discussions');
+const matchesRouter = require('./routes/matches');
+const recommendationsRouter = require('./routes/recommendations');
+const usersRouter = require('./routes/users');
+
 const app = express();
 const PORT = process.env.PORT || 8000;
 
@@ -53,30 +65,14 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Sample data endpoint
-app.get('/api/users', (req, res) => {
-  res.json({
-    users: [
-      { id: 1, name: 'John Doe', email: 'john@example.com' },
-      { id: 2, name: 'Jane Smith', email: 'jane@example.com' },
-      { id: 3, name: 'Bob Johnson', email: 'bob@example.com' }
-    ]
-  });
-});
-
-// POST endpoint for testing
-app.post('/api/users', (req, res) => {
-  const { name, email } = req.body;
-  res.json({
-    message: 'User created successfully',
-    user: {
-      id: Date.now(),
-      name,
-      email,
-      createdAt: new Date().toISOString()
-    }
-  });
-});
+// Register API routes
+app.use('/api/restaurants', restaurantsRouter);
+app.use('/api/favorites', favoritesRouter);
+app.use('/api/reviews', reviewsRouter);
+app.use('/api/discussions', discussionsRouter);
+app.use('/api/matches', matchesRouter);
+app.use('/api/recommendations', recommendationsRouter);
+app.use('/api/users', usersRouter);
 
 // Catch-all route - MUST BE LAST
 // This handles Flutter web routing (SPA)
@@ -90,11 +86,32 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 DHAM API server running on port ${PORT}`);
-  console.log(`📡 Health check: http://localhost:${PORT}/health`);
-  console.log(`🧪 Test endpoint: http://localhost:${PORT}/api/test`);
-  console.log(`🎨 Flutter app: http://localhost:${PORT}/`);
-});
+// Initialize database and start server
+const startServer = async () => {
+  try {
+    // Sync database
+    await syncDatabase(false);
+
+    app.listen(PORT, () => {
+      console.log(`🚀 DHAM API server running on port ${PORT}`);
+      console.log(`📡 Health check: http://localhost:${PORT}/health`);
+      console.log(`🧪 Test endpoint: http://localhost:${PORT}/api/test`);
+      console.log(`🎨 Flutter app: http://localhost:${PORT}/`);
+      console.log(`\n📚 Available API endpoints:`);
+      console.log(`   - /api/restaurants - Restaurant CRUD and filtering`);
+      console.log(`   - /api/favorites - User favorites management`);
+      console.log(`   - /api/reviews - Restaurant reviews`);
+      console.log(`   - /api/discussions - Discussion boards`);
+      console.log(`   - /api/matches - User matching system`);
+      console.log(`   - /api/recommendations - Personalized recommendations`);
+      console.log(`   - /api/users - User authentication and profiles`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 module.exports = app;
