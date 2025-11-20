@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "954160440100",
+    "project_id": "dham-gator-food-finder",
+    "storage_bucket": "dham-gator-food-finder.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:954160440100:android:1a6d3e191107092d63c9b1",
+        "android_client_info": {
+          "package_name": "com.example.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkDXb3PoUV_9191T3hOkliGc74nTp92Vo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
