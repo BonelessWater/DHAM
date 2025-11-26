@@ -1,1 +1,36 @@
+//temp db
+
+const crypto = require("crypto");
+
+class MemoryUserRepo{
+    constructor() {
+        this.users = [];
+    }
+
+    async findByEmail(email){
+        return this.users.find(u => u.email === email) || null;
+    }
+
+    async create({name, email, passwordHash}){
+        const now = new Date().toISOString();
+        const user = {
+            id : crypto.randomUUID(),
+            name : name || "",
+            email,
+            passwordHash,
+            createdAt: now,
+            updatedAt: now
+        };
+
+        this.users.push(user);
+        return user;
+
+    }
+
+    async findById(id){
+        return this.users.find(u => u.id === id) || null;
+    }
+}
+
+module.exports = new MemoryUserRepo();
 

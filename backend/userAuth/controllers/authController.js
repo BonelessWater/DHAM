@@ -1,11 +1,10 @@
 
-const bcrypt = require("bycryptjs");
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const userRepo = require("../userAuth/repos/userRepo.memory"); //change when get DB
+const userRepo = require("../repos/userRepo.memory"); //change when get DB
 
-const JWT_SECRET = "supersecret";       //change later
-const JWT_EXPIRES = "10m";
-const REFRESH_EXPIRES = "2d";
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";       //change later
+const JWT_EXPIRES = process.env.JWT_EXPIRES || "10m";
 
 function signAccessToken(user) {
     return jwt.sign(
@@ -14,59 +13,74 @@ function signAccessToken(user) {
         },
         JWT_SECRET,
         {
-            expiresIN: JWT_EXPIRES
+            expiresIn: JWT_EXPIRES
         }
     );
 }
 
-exports.register = async (request, response) => {
-    const { name = "", email, password } = request.body;
+exports.register = async (req, res) => {
+    const { name = "", email, password } = req.body;
 
 
     if (!email || !password) {
-        return response.status(400).json({ error: "Email and password is required" });
+        return res.status(400).json({ error: "Email and password is required" });
     }
 
     const exists = await userRepo.findByEmail(email);
     if (exists) {
-        return response.status(409).json({ error: "This email is already attatched to another user." });
+        return res.status(409).json({ error: "This email is already attatched to another user." });
     }
 
-    const hashPassword = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
 
     const user = await userRepo.create({
         name,
         email,
-        hashPassword
+        passwordHash
     });
 
     const accessToken = signAccessToken(user);
 
-    response.status(201).json({
-        user,
+    res.status(201).json({
+        user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt
+        },
         accessToken
     });
 
 };
 
-exports.login = async (request, response) => {
-    const { email, password } = request.body;
+exports.login = async (req, res) => {
+    const { email, password } = req.body;
 
     const user = await userRepo.findByEmail(email);
     if (!user) {
-        return response.status(401).json({ error: "Invalid username or password. Please try again." });
+        return res.status(401).json({ error: "Invalid username or password. Please try again." });
     }
 
-    const valid = await.bcrypt.compare(password, user.hashPassword);
+    const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
-        return response.status(401).json({ error: "Invalid username or password. Please try again" });
+        return res.status(401).json({ error: "Invalid username or password. Please try again" });
     }
 
-    const accessTojen = signAccessToken(user);
+    const accessToken = signAccessToken(user);
 
-    response.json({ user, accessToken });
+    res.json({
+        user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt
+        },
+        accessToken
+    });
 };
 
-exports.me = async (request, response) => {
-    response.json({ user: request.user });
+exports.me = async (req, res) => {
+    res.json({ user: req.user });
 };
