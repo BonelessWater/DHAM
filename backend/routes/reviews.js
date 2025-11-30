@@ -1,99 +1,135 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { Review, Restaurant, User } = require('../models');
-const { Op } = require('sequelize');
+
+// Firebase-based models
+const Review = require("../models/Review");
+const Restaurant = require("../models/Restaurant");
+const User = require("../models/User");
 
 // GET reviews for a restaurant
-router.get('/restaurant/:restaurantId', async (req, res) => {
+router.get("/restaurant/:restaurantId", async (req, res) => {
   try {
     const { rating, sortBy, limit = 20, offset = 0 } = req.query;
+    const restaurantId = req.params.restaurantId;
 
-    const where = { restaurantId: req.params.restaurantId };
+    const limitNum = parseInt(limit, 10) || 20;
+    const offsetNum = parseInt(offset, 10) || 0;
+
+    // All reviews for this restaurant from Firebase
+    let reviews = await Review.findByRestaurantId(restaurantId);
 
     // Filter by rating if specified
     if (rating) {
-      where.rating = parseInt(rating);
+      const ratingInt = parseInt(rating, 10);
+      reviews = reviews.filter((r) => Number(r.rating) === ratingInt);
     }
 
-    // Determine sorting
-    let order = [['createdAt', 'DESC']];
-    if (sortBy === 'rating_high') {
-      order = [['rating', 'DESC'], ['createdAt', 'DESC']];
-    } else if (sortBy === 'rating_low') {
-      order = [['rating', 'ASC'], ['createdAt', 'DESC']];
-    } else if (sortBy === 'helpful') {
-      order = [['helpfulCount', 'DESC'], ['createdAt', 'DESC']];
-    }
+    // Sorting
+    reviews.sort((a, b) => {
+      const da = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const db = b.createdAt ? new Date(b.createdAt) : new Date(0);
 
-    const reviews = await Review.findAll({
-      where,
-      include: [
-        {
-          model: User,
-          as: 'user',
-          attributes: ['id', 'username', 'firstName', 'lastName', 'profilePicture']
-        }
-      ],
-      order,
-      limit: parseInt(limit),
-      offset: parseInt(offset)
+      if (sortBy === "rating_high") {
+        const ra = Number(a.rating) || 0;
+        const rb = Number(b.rating) || 0;
+        if (rb !== ra) return rb - ra;
+        return db - da;
+      }
+
+      if (sortBy === "rating_low") {
+        const ra = Number(a.rating) || 0;
+        const rb = Number(b.rating) || 0;
+        if (ra !== rb) return ra - rb;
+        return db - da;
+      }
+
+      if (sortBy === "helpful") {
+        const ha = Number(a.helpfulCount) || 0;
+        const hb = Number(b.helpfulCount) || 0;
+        if (hb !== ha) return hb - ha;
+        return db - da;
+      }
+
+      // default: createdAt DESC
+      return db - da;
     });
 
-    const total = await Review.count({ where });
+    const total = reviews.length;
+
+    const paged = reviews.slice(offsetNum, offsetNum + limitNum);
+
+    // Attach user info similar to original include: { model: User, as: 'user', ... }
+    const result = [];
+    for (const r of paged) {
+      const user = await User.findById(r.userId);
+      result.push({
+        ...r.toSafeObject(),
+        user: user ? user.toSafeObject() : null,
+      });
+    }
 
     res.json({
       success: true,
-      data: reviews,
+      data: result,
       pagination: {
         total,
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        hasMore: parseInt(offset) + reviews.length < total
-      }
+        limit: limitNum,
+        offset: offsetNum,
+        hasMore: offsetNum + paged.length < total,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching reviews:', error);
+    console.error("Error fetching reviews:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch reviews',
-      message: error.message
+      error: "Failed to fetch reviews",
+      message: error.message,
     });
   }
 });
 
 // GET reviews by user
-router.get('/user/:userId', async (req, res) => {
+router.get("/user/:userId", async (req, res) => {
   try {
-    const reviews = await Review.findAll({
-      where: { userId: req.params.userId },
-      include: [
-        {
-          model: Restaurant,
-          as: 'restaurant',
-          attributes: ['id', 'name', 'imageUrl', 'priceRange', 'cuisineType']
-        }
-      ],
-      order: [['createdAt', 'DESC']]
+    const userId = req.params.userId;
+
+    let reviews = await Review.findByUserId(userId);
+
+    // Newest first
+    reviews.sort((a, b) => {
+      const da = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const db = b.createdAt ? new Date(b.createdAt) : new Date(0);
+      return db - da;
     });
+
+    // Attach restaurant info similar to original include
+    const result = [];
+    for (const r of reviews) {
+      const restaurant = await Restaurant.findById(r.restaurantId);
+      result.push({
+        ...r.toSafeObject(),
+        restaurant: restaurant
+          ? restaurant.toSafeObject()
+          : null,
+      });
+    }
 
     res.json({
       success: true,
-      data: reviews
+      data: result,
     });
-
   } catch (error) {
-    console.error('Error fetching user reviews:', error);
+    console.error("Error fetching user reviews:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch user reviews',
-      message: error.message
+      error: "Failed to fetch user reviews",
+      message: error.message,
     });
   }
 });
 
 // POST - Create a review
-router.post('/', async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const {
       userId,
@@ -106,40 +142,44 @@ router.post('/', async (req, res) => {
       atmosphereRating,
       valueRating,
       visitDate,
-      dishesOrdered
+      dishesOrdered,
+      images,
     } = req.body;
 
     // Validation
     if (!userId || !restaurantId || !rating || !content) {
       return res.status(400).json({
         success: false,
-        error: 'userId, restaurantId, rating, and content are required'
+        error:
+          "userId, restaurantId, rating, and content are required",
       });
     }
 
-    if (rating < 1 || rating > 5) {
+    const ratingNum = Number(rating);
+    if (ratingNum < 1 || ratingNum > 5) {
       return res.status(400).json({
         success: false,
-        error: 'Rating must be between 1 and 5'
+        error: "Rating must be between 1 and 5",
       });
     }
 
     // Check if user already reviewed this restaurant
-    const existingReview = await Review.findOne({
-      where: { userId, restaurantId }
-    });
-
-    if (existingReview) {
+    const existing = await Review.findByUserId(userId);
+    const already = existing.find(
+      (r) => r.restaurantId === restaurantId
+    );
+    if (already) {
       return res.status(400).json({
         success: false,
-        error: 'You have already reviewed this restaurant'
+        error: "You have already reviewed this restaurant",
       });
     }
 
+    // Create review in Firebase (model handles restaurant rating updates)
     const review = await Review.create({
       userId,
       restaurantId,
-      rating,
+      rating: ratingNum,
       title,
       content,
       foodQuality,
@@ -147,60 +187,40 @@ router.post('/', async (req, res) => {
       atmosphereRating,
       valueRating,
       visitDate,
-      dishesOrdered
+      dishesOrdered,
+      images,
     });
 
-    // Update restaurant average rating
-    const restaurant = await Restaurant.findByPk(restaurantId);
-    if (restaurant) {
-      const allReviews = await Review.findAll({
-        where: { restaurantId },
-        attributes: ['rating']
-      });
-
-      const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
-
-      await restaurant.update({
-        averageRating: avgRating.toFixed(2),
-        totalReviews: allReviews.length
-      });
-    }
-
-    // Fetch the created review with user data
-    const createdReview = await Review.findByPk(review.id, {
-      include: [
-        {
-          model: User,
-          as: 'user',
-          attributes: ['id', 'username', 'firstName', 'lastName', 'profilePicture']
-        }
-      ]
-    });
+    // Attach user info like original
+    const user = await User.findById(userId);
 
     res.status(201).json({
       success: true,
-      data: createdReview
+      data: {
+        ...review.toSafeObject(),
+        user: user ? user.toSafeObject() : null,
+      },
     });
-
   } catch (error) {
-    console.error('Error creating review:', error);
+    console.error("Error creating review:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to create review',
-      message: error.message
+      error: "Failed to create review",
+      message: error.message,
     });
   }
 });
 
 // PUT - Update a review
-router.put('/:id', async (req, res) => {
+router.put("/:id", async (req, res) => {
   try {
-    const review = await Review.findByPk(req.params.id);
+    const id = req.params.id;
 
-    if (!review) {
+    const existing = await Review.findById(id);
+    if (!existing) {
       return res.status(404).json({
         success: false,
-        error: 'Review not found'
+        error: "Review not found",
       });
     }
 
@@ -212,10 +232,11 @@ router.put('/:id', async (req, res) => {
       serviceQuality,
       atmosphereRating,
       valueRating,
-      dishesOrdered
+      dishesOrdered,
+      images,
     } = req.body;
 
-    await review.update({
+    const updated = await Review.update(id, {
       rating,
       title,
       content,
@@ -223,119 +244,79 @@ router.put('/:id', async (req, res) => {
       serviceQuality,
       atmosphereRating,
       valueRating,
-      dishesOrdered
+      dishesOrdered,
+      images,
     });
-
-    // Update restaurant average rating
-    const allReviews = await Review.findAll({
-      where: { restaurantId: review.restaurantId },
-      attributes: ['rating']
-    });
-
-    const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
-
-    await Restaurant.update(
-      { averageRating: avgRating.toFixed(2) },
-      { where: { id: review.restaurantId } }
-    );
 
     res.json({
       success: true,
-      data: review
+      data: updated.toSafeObject(),
     });
-
   } catch (error) {
-    console.error('Error updating review:', error);
+    console.error("Error updating review:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to update review',
-      message: error.message
+      error: "Failed to update review",
+      message: error.message,
     });
   }
 });
 
 // DELETE - Delete a review
-router.delete('/:id', async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
-    const review = await Review.findByPk(req.params.id);
+    const id = req.params.id;
 
-    if (!review) {
+    const existing = await Review.findById(id);
+    if (!existing) {
       return res.status(404).json({
         success: false,
-        error: 'Review not found'
+        error: "Review not found",
       });
     }
 
-    const restaurantId = review.restaurantId;
-    await review.destroy();
-
-    // Update restaurant ratings
-    const allReviews = await Review.findAll({
-      where: { restaurantId },
-      attributes: ['rating']
-    });
-
-    if (allReviews.length > 0) {
-      const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
-      await Restaurant.update(
-        {
-          averageRating: avgRating.toFixed(2),
-          totalReviews: allReviews.length
-        },
-        { where: { id: restaurantId } }
-      );
-    } else {
-      await Restaurant.update(
-        {
-          averageRating: 0,
-          totalReviews: 0
-        },
-        { where: { id: restaurantId } }
-      );
-    }
+    await Review.delete(id);
 
     res.json({
       success: true,
-      message: 'Review deleted'
+      message: "Review deleted",
     });
-
   } catch (error) {
-    console.error('Error deleting review:', error);
+    console.error("Error deleting review:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to delete review',
-      message: error.message
+      error: "Failed to delete review",
+      message: error.message,
     });
   }
 });
 
 // POST - Mark review as helpful
-router.post('/:id/helpful', async (req, res) => {
+router.post("/:id/helpful", async (req, res) => {
   try {
-    const review = await Review.findByPk(req.params.id);
+    const id = req.params.id;
 
-    if (!review) {
+    const existing = await Review.findById(id);
+    if (!existing) {
       return res.status(404).json({
         success: false,
-        error: 'Review not found'
+        error: "Review not found",
       });
     }
 
-    await review.update({
-      helpfulCount: review.helpfulCount + 1
-    });
+    await Review.incrementHelpfulCount(id, 1);
+    const updated = await Review.findById(id);
 
     res.json({
       success: true,
-      data: review
+      data: updated.toSafeObject(),
     });
-
   } catch (error) {
-    console.error('Error marking review as helpful:', error);
+    console.error("Error marking review as helpful:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to mark review as helpful',
-      message: error.message
+      error: "Failed to mark review as helpful",
+      message: error.message,
     });
   }
 });

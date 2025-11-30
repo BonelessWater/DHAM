@@ -1,3 +1,4 @@
+version: '3.8'
 
 services:
   backend:
@@ -7,40 +8,26 @@ services:
     container_name: dham-backend
     ports:
       - "8000:8000"
+    # Load env vars (FIREBASE_*, JWT_SECRET, etc.)
+    env_file:
+      - backend/.env
     environment:
       - NODE_ENV=development
       - PORT=8000
+    # Mount ONLY the service account file (not the whole app)
     volumes:
-      - ./backend:/app
-      - /app/node_modules
+      - ./backend/serviceAccountKey.json:/app/serviceAccountKey.json:ro
     restart: unless-stopped
     networks:
       - dham-network
+    # Healthcheck using node (matches your Dockerfile healthcheck logic)
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 
-  # Optional: Add database service
-  # postgres:
-  #   image: postgres:15-alpine
-  #   container_name: dham-postgres
-  #   environment:
-  #     POSTGRES_DB: dham_db
-  #     POSTGRES_USER: your_username
-  #     POSTGRES_PASSWORD: your_password
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   networks:
-  #     - dham-network
-
 networks:
   dham-network:
     driver: bridge
-
-# volumes:
-#   postgres_data:

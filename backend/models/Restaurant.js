@@ -1,167 +1,188 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+// backend/models/Restaurant.js
+const db = require("../config/database");
+const { randomUUID } = require("crypto");
 
-const Restaurant = sequelize.define('Restaurant', {
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true
-  },
-  name: {
-    type: DataTypes.STRING(100),
-    allowNull: false
-  },
-  description: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-  // Location fields
-  address: {
-    type: DataTypes.STRING(255),
-    allowNull: false
-  },
-  city: {
-    type: DataTypes.STRING(100),
-    defaultValue: 'Gainesville',
-    allowNull: false
-  },
-  state: {
-    type: DataTypes.STRING(2),
-    defaultValue: 'FL',
-    allowNull: false
-  },
-  zipCode: {
-    type: DataTypes.STRING(10),
-    allowNull: true
-  },
-  latitude: {
-    type: DataTypes.DECIMAL(10, 8),
-    allowNull: true
-  },
-  longitude: {
-    type: DataTypes.DECIMAL(11, 8),
-    allowNull: true
-  },
-  // Contact and website
-  phone: {
-    type: DataTypes.STRING(20),
-    allowNull: true
-  },
-  website: {
-    type: DataTypes.STRING(255),
-    allowNull: true
-  },
-  // Restaurant details
-  cuisineType: {
-    type: DataTypes.ARRAY(DataTypes.STRING),
-    defaultValue: [],
-    comment: 'Types of cuisine (e.g., ["Italian", "Pizza", "Pasta"])'
-  },
-  priceRange: {
-    type: DataTypes.ENUM('$', '$$', '$$$', '$$$$'),
-    allowNull: false,
-    comment: '$ = budget, $$ = moderate, $$$ = expensive, $$$$ = fine dining'
-  },
-  atmosphere: {
-    type: DataTypes.ARRAY(DataTypes.STRING),
-    defaultValue: [],
-    comment: 'Atmosphere tags (e.g., ["casual", "quiet", "lively", "romantic", "study-friendly"])'
-  },
-  // Features and amenities
-  isStudyFriendly: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false,
-    comment: 'Whether restaurant is good for studying'
-  },
-  hasWifi: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
-  },
-  hasOutdoorSeating: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
-  },
-  hasParking: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
-  },
-  isVegetarianFriendly: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
-  },
-  isVeganFriendly: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
-  },
-  isGlutenFreeFriendly: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
-  },
-  // Hours
-  hoursOfOperation: {
-    type: DataTypes.JSONB,
-    allowNull: true,
-    comment: 'Operating hours by day of week'
-  },
-  // Images
-  imageUrl: {
-    type: DataTypes.STRING(255),
-    allowNull: true
-  },
-  images: {
-    type: DataTypes.ARRAY(DataTypes.STRING),
-    defaultValue: [],
-    comment: 'Array of image URLs'
-  },
-  // Ratings and popularity
-  averageRating: {
-    type: DataTypes.DECIMAL(3, 2),
-    defaultValue: 0.0,
-    validate: {
-      min: 0,
-      max: 5
-    }
-  },
-  totalReviews: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0
-  },
-  totalLikes: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0
-  },
-  // Status
-  isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
-  },
-  isVerified: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false,
-    comment: 'Whether restaurant info has been verified'
+// keep this so the rest of your code doesn't have to change
+const uuidv4 = () => randomUUID();
+
+
+const ALLOWED_PRICE_RANGES = ["$", "$$", "$$$", "$$$$"];
+
+class Restaurant {
+  static ref() {
+    return db.ref("restaurants");
   }
-}, {
-  timestamps: true,
-  tableName: 'restaurants',
-  indexes: [
-    {
-      fields: ['city']
-    },
-    {
-      fields: ['priceRange']
-    },
-    {
-      fields: ['averageRating']
-    },
-    {
-      fields: ['cuisineType'],
-      using: 'gin'
-    },
-    {
-      fields: ['atmosphere'],
-      using: 'gin'
+
+  static _attachMethods(rest) {
+    if (!rest) return null;
+
+    // Safe object (omit nothing for now — ratings have no secrets)
+    rest.toSafeObject = function () {
+      return { ...rest };
+    };
+
+    return rest;
+  }
+
+  /**
+   * Create a restaurant
+   */
+  static async create(data) {
+    const id = uuidv4();
+    const now = new Date().toISOString();
+
+    const priceRange = ALLOWED_PRICE_RANGES.includes(data.priceRange)
+      ? data.priceRange
+      : "$$";
+
+    const restaurant = {
+      id,
+      name: data.name,
+      description: data.description || null,
+
+      // Location
+      address: data.address || null,
+      city: data.city || "Gainesville",
+      state: data.state || "FL",
+      zipCode: data.zipCode || null,
+      latitude:
+        data.latitude !== undefined && data.latitude !== null
+          ? Number(data.latitude)
+          : null,
+      longitude:
+        data.longitude !== undefined && data.longitude !== null
+          ? Number(data.longitude)
+          : null,
+
+      // Contact
+      phone: data.phone || null,
+      website: data.website || null,
+
+      // Info
+      cuisineType: Array.isArray(data.cuisineType) ? data.cuisineType : [],
+      priceRange,
+      atmosphere: Array.isArray(data.atmosphere) ? data.atmosphere : [],
+
+      // Features
+      isStudyFriendly: !!data.isStudyFriendly,
+      hasWifi: !!data.hasWifi,
+      hasOutdoorSeating: !!data.hasOutdoorSeating,
+      hasParking: !!data.hasParking,
+      isVegetarianFriendly: !!data.isVegetarianFriendly,
+      isVeganFriendly: !!data.isVeganFriendly,
+      isGlutenFreeFriendly: !!data.isGlutenFreeFriendly,
+
+      // Hours
+      hoursOfOperation: data.hoursOfOperation || null,
+
+      // Images
+      imageUrl: data.imageUrl || null,
+      images: Array.isArray(data.images) ? data.images : [],
+
+      // Ratings
+      averageRating: Number(data.averageRating) || 0,
+      totalReviews: Number(data.totalReviews) || 0,
+      totalLikes: Number(data.totalLikes) || 0,
+
+      // Status
+      isActive: data.isActive !== false,
+      isVerified: !!data.isVerified,
+
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.ref().child(id).set(restaurant);
+    return this._attachMethods(restaurant);
+  }
+
+  static async findById(id) {
+    const snap = await this.ref().child(id).once("value");
+    if (!snap.exists()) return null;
+    return this._attachMethods(snap.val());
+  }
+
+  static async findAll() {
+    const snap = await this.ref().once("value");
+    const data = snap.val() || {};
+    return Object.values(data).map((r) => this._attachMethods(r));
+  }
+
+  static async update(id, updates) {
+    const snap = await this.ref().child(id).once("value");
+    if (!snap.exists()) return null;
+
+    const existing = snap.val();
+    const merged = { ...existing };
+
+    // Enforce priceRange rules
+    if (updates.priceRange) {
+      merged.priceRange = ALLOWED_PRICE_RANGES.includes(updates.priceRange)
+        ? updates.priceRange
+        : merged.priceRange;
     }
-  ]
-});
+
+    // Handle boolean/array/number conversions
+    const arrayFields = ["cuisineType", "atmosphere", "images"];
+    arrayFields.forEach((f) => {
+      if (updates[f] !== undefined) {
+        merged[f] = Array.isArray(updates[f]) ? updates[f] : merged[f];
+      }
+    });
+
+    const boolFields = [
+      "isStudyFriendly",
+      "hasWifi",
+      "hasOutdoorSeating",
+      "hasParking",
+      "isVegetarianFriendly",
+      "isVeganFriendly",
+      "isGlutenFreeFriendly",
+      "isActive",
+      "isVerified",
+    ];
+    boolFields.forEach((b) => {
+      if (updates[b] !== undefined) merged[b] = !!updates[b];
+    });
+
+    ["averageRating", "totalReviews", "totalLikes", "latitude", "longitude"].forEach((n) => {
+      if (updates[n] !== undefined)
+        merged[n] = updates[n] !== null ? Number(updates[n]) : merged[n];
+    });
+
+    merged.updatedAt = new Date().toISOString();
+
+    await this.ref().child(id).set(merged);
+    return this._attachMethods(merged);
+  }
+
+  static async delete(id) {
+    await this.ref().child(id).remove();
+    return true;
+  }
+
+  static async findAll() {
+  const snap = await this.ref().once("value");
+  const data = snap.val() || {};
+  return Object.values(data).map((r) => this._attachMethods(r));
+}
+
+
+  /**
+   * Increment rating + review counters atomically
+   */
+  static async incrementCounters(id, counters = {}) {
+    const ref = this.ref().child(id);
+    await ref.transaction((rest) => {
+      if (!rest) return rest;
+      if (counters.totalReviews)
+        rest.totalReviews = (rest.totalReviews || 0) + counters.totalReviews;
+      if (counters.totalLikes)
+        rest.totalLikes = (rest.totalLikes || 0) + counters.totalLikes;
+      rest.updatedAt = new Date().toISOString();
+      return rest;
+    });
+  }
+}
 
 module.exports = Restaurant;

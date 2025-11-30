@@ -1,165 +1,131 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { Discussion, DiscussionReply, Restaurant, User } = require('../models');
-const { Op } = require('sequelize');
+
+const Discussion = require("../models/Discussion");
+const DiscussionReply = require("../models/DiscussionReply");
+
+// Helper: sorting functions
+function sortDiscussions(discussions, sortBy) {
+  const toDate = (d) => (d ? new Date(d) : new Date(0));
+
+  return discussions.sort((a, b) => {
+    // Pinned first, always
+    if (a.isPinned && !b.isPinned) return -1;
+    if (!a.isPinned && b.isPinned) return 1;
+
+    if (sortBy === "popular") {
+      // likeCount desc, then replyCount desc
+      if ((b.likeCount || 0) !== (a.likeCount || 0)) {
+        return (b.likeCount || 0) - (a.likeCount || 0);
+      }
+      if ((b.replyCount || 0) !== (a.replyCount || 0)) {
+        return (b.replyCount || 0) - (a.replyCount || 0);
+      }
+      // fallback to createdAt desc
+      return toDate(b.createdAt) - toDate(a.createdAt);
+    }
+
+    if (sortBy === "active") {
+      // replyCount desc, then createdAt desc
+      if ((b.replyCount || 0) !== (a.replyCount || 0)) {
+        return (b.replyCount || 0) - (a.replyCount || 0);
+      }
+      return toDate(b.createdAt) - toDate(a.createdAt);
+    }
+
+    // default: createdAt desc
+    return toDate(b.createdAt) - toDate(a.createdAt);
+  });
+}
 
 // GET discussions for a restaurant
-router.get('/restaurant/:restaurantId', async (req, res) => {
+router.get("/restaurant/:restaurantId", async (req, res) => {
   try {
     const { category, sortBy, limit = 20, offset = 0 } = req.query;
+    const restaurantId = req.params.restaurantId;
 
-    const where = { restaurantId: req.params.restaurantId };
+    // Get all discussions for this restaurant from RTDB
+    let discussions = await Discussion.findByRestaurantId(restaurantId);
 
-    // Filter by category if specified
-    if (category && category !== 'all') {
-      where.category = category;
+    // Filter by category if specified (and not "all")
+    if (category && category !== "all") {
+      discussions = discussions.filter((d) => d.category === category);
     }
 
-    // Determine sorting
-    let order = [['isPinned', 'DESC'], ['createdAt', 'DESC']];
-    if (sortBy === 'popular') {
-      order = [['isPinned', 'DESC'], ['likeCount', 'DESC'], ['replyCount', 'DESC']];
-    } else if (sortBy === 'active') {
-      order = [['isPinned', 'DESC'], ['replyCount', 'DESC'], ['createdAt', 'DESC']];
-    }
+    // Sort in memory
+    const sorted = sortDiscussions(discussions, sortBy);
 
-    const discussions = await Discussion.findAll({
-      where,
-      include: [
-        {
-          model: User,
-          as: 'user',
-          attributes: ['id', 'username', 'firstName', 'lastName', 'profilePicture']
-        },
-        {
-          model: DiscussionReply,
-          as: 'replies',
-          limit: 3,
-          order: [['createdAt', 'ASC']],
-          include: [
-            {
-              model: User,
-              as: 'user',
-              attributes: ['id', 'username', 'firstName', 'lastName', 'profilePicture']
-            }
-          ]
-        }
-      ],
-      order,
-      limit: parseInt(limit),
-      offset: parseInt(offset)
-    });
+    const limitNum = parseInt(limit, 10) || 20;
+    const offsetNum = parseInt(offset, 10) || 0;
 
-    const total = await Discussion.count({ where });
+    const paged = sorted.slice(offsetNum, offsetNum + limitNum);
+    const total = sorted.length;
 
     res.json({
       success: true,
-      data: discussions,
+      data: paged,
       pagination: {
         total,
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        hasMore: parseInt(offset) + discussions.length < total
-      }
+        limit: limitNum,
+        offset: offsetNum,
+        hasMore: offsetNum + paged.length < total,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching discussions:', error);
+    console.error("Error fetching discussions:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch discussions',
-      message: error.message
+      error: "Failed to fetch discussions",
+      message: error.message,
     });
   }
 });
 
 // GET single discussion by ID
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
-    const discussion = await Discussion.findByPk(req.params.id, {
-      include: [
-        {
-          model: User,
-          as: 'user',
-          attributes: ['id', 'username', 'firstName', 'lastName', 'profilePicture']
-        },
-        {
-          model: Restaurant,
-          as: 'restaurant',
-          attributes: ['id', 'name', 'imageUrl']
-        },
-        {
-          model: DiscussionReply,
-          as: 'replies',
-          where: { parentReplyId: null },
-          required: false,
-          include: [
-            {
-              model: User,
-              as: 'user',
-              attributes: ['id', 'username', 'firstName', 'lastName', 'profilePicture']
-            },
-            {
-              model: DiscussionReply,
-              as: 'childReplies',
-              include: [
-                {
-                  model: User,
-                  as: 'user',
-                  attributes: ['id', 'username', 'firstName', 'lastName', 'profilePicture']
-                }
-              ]
-            }
-          ],
-          order: [['createdAt', 'ASC']]
-        }
-      ]
-    });
+    const id = req.params.id;
+
+    const discussion = await Discussion.findById(id);
 
     if (!discussion) {
       return res.status(404).json({
         success: false,
-        error: 'Discussion not found'
+        error: "Discussion not found",
       });
     }
 
-    // Increment view count
-    await discussion.update({
-      viewCount: discussion.viewCount + 1
-    });
+    // Increment view count atomically in RTDB
+    await Discussion.incrementCounters(id, { viewCount: 1 });
+
+    // Re-fetch updated discussion (or manually bump viewCount)
+    const updated = await Discussion.findById(id);
 
     res.json({
       success: true,
-      data: discussion
+      data: updated,
     });
-
   } catch (error) {
-    console.error('Error fetching discussion:', error);
+    console.error("Error fetching discussion:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch discussion',
-      message: error.message
+      error: "Failed to fetch discussion",
+      message: error.message,
     });
   }
 });
 
 // POST - Create a discussion
-router.post('/', async (req, res) => {
+router.post("/", async (req, res) => {
   try {
-    const {
-      userId,
-      restaurantId,
-      title,
-      content,
-      category,
-      tags
-    } = req.body;
+    const { userId, restaurantId, title, content, category, tags, images } =
+      req.body;
 
     // Validation
     if (!userId || !restaurantId || !title || !content) {
       return res.status(400).json({
         success: false,
-        error: 'userId, restaurantId, title, and content are required'
+        error: "userId, restaurantId, title, and content are required",
       });
     }
 
@@ -168,181 +134,186 @@ router.post('/', async (req, res) => {
       restaurantId,
       title,
       content,
-      category: category || 'experience',
-      tags: tags || []
+      category: category || "experience",
+      tags: tags || [],
+      images: images || [],
     });
 
-    // Fetch the created discussion with user data
-    const createdDiscussion = await Discussion.findByPk(discussion.id, {
-      include: [
-        {
-          model: User,
-          as: 'user',
-          attributes: ['id', 'username', 'firstName', 'lastName', 'profilePicture']
-        }
-      ]
-    });
-
+    // If you eventually want user info attached, you can fetch User here
+    // and merge it in, but for now we just return the discussion object.
     res.status(201).json({
       success: true,
-      data: createdDiscussion
+      data: discussion,
     });
-
   } catch (error) {
-    console.error('Error creating discussion:', error);
+    console.error("Error creating discussion:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to create discussion',
-      message: error.message
+      error: "Failed to create discussion",
+      message: error.message,
     });
   }
 });
 
 // PUT - Update a discussion
-router.put('/:id', async (req, res) => {
+router.put("/:id", async (req, res) => {
   try {
-    const discussion = await Discussion.findByPk(req.params.id);
+    const id = req.params.id;
+    const existing = await Discussion.findById(id);
 
-    if (!discussion) {
+    if (!existing) {
       return res.status(404).json({
         success: false,
-        error: 'Discussion not found'
+        error: "Discussion not found",
       });
     }
 
-    const { title, content, category, tags } = req.body;
+    const { title, content, category, tags, images } = req.body;
 
-    await discussion.update({
-      title,
-      content,
-      category,
-      tags
+    const updated = await Discussion.update(id, {
+      ...(title !== undefined && { title }),
+      ...(content !== undefined && { content }),
+      ...(category !== undefined && { category }),
+      ...(tags !== undefined && { tags }),
+      ...(images !== undefined && { images }),
     });
 
     res.json({
       success: true,
-      data: discussion
+      data: updated,
     });
-
   } catch (error) {
-    console.error('Error updating discussion:', error);
+    console.error("Error updating discussion:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to update discussion',
-      message: error.message
+      error: "Failed to update discussion",
+      message: error.message,
     });
   }
 });
 
 // DELETE - Delete a discussion
-router.delete('/:id', async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
-    const discussion = await Discussion.findByPk(req.params.id);
+    const id = req.params.id;
+    const existing = await Discussion.findById(id);
 
-    if (!discussion) {
+    if (!existing) {
       return res.status(404).json({
         success: false,
-        error: 'Discussion not found'
+        error: "Discussion not found",
       });
     }
 
-    await discussion.destroy();
+    await Discussion.delete(id);
 
     res.json({
       success: true,
-      message: 'Discussion deleted'
+      message: "Discussion deleted",
     });
-
   } catch (error) {
-    console.error('Error deleting discussion:', error);
+    console.error("Error deleting discussion:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to delete discussion',
-      message: error.message
+      error: "Failed to delete discussion",
+      message: error.message,
     });
   }
 });
 
 // POST - Like a discussion
-router.post('/:id/like', async (req, res) => {
+router.post("/:id/like", async (req, res) => {
   try {
-    const discussion = await Discussion.findByPk(req.params.id);
+    const id = req.params.id;
+    const existing = await Discussion.findById(id);
 
-    if (!discussion) {
+    if (!existing) {
       return res.status(404).json({
         success: false,
-        error: 'Discussion not found'
+        error: "Discussion not found",
       });
     }
 
-    await discussion.update({
-      likeCount: discussion.likeCount + 1
-    });
+    // Increment likeCount atomically
+    await Discussion.incrementCounters(id, { likeCount: 1 });
+    const updated = await Discussion.findById(id);
 
     res.json({
       success: true,
-      data: discussion
+      data: updated,
     });
-
   } catch (error) {
-    console.error('Error liking discussion:', error);
+    console.error("Error liking discussion:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to like discussion',
-      message: error.message
+      error: "Failed to like discussion",
+      message: error.message,
     });
   }
 });
 
 // POST - Reply to a discussion
-router.post('/:id/replies', async (req, res) => {
+// NOTE: This still uses Sequelize DiscussionReply + User.
+//       Once you move replies to Firebase too, you'll refactor this.
+router.post("/:id/replies", async (req, res) => {
   try {
     const { userId, content, parentReplyId } = req.body;
+    const discussionId = req.params.id;
 
     if (!userId || !content) {
       return res.status(400).json({
         success: false,
-        error: 'userId and content are required'
+        error: "userId and content are required",
       });
     }
 
+    // Ensure discussion exists in Firebase
+    const existing = await Discussion.findById(discussionId);
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        error: "Discussion not found",
+      });
+    }
+
+    // Create reply in the existing SQL table for now
     const reply = await DiscussionReply.create({
-      discussionId: req.params.id,
+      discussionId,
       userId,
       content,
-      parentReplyId
+      parentReplyId,
     });
 
-    // Update reply count
-    const discussion = await Discussion.findByPk(req.params.id);
-    if (discussion) {
-      await discussion.update({
-        replyCount: discussion.replyCount + 1
-      });
-    }
+    // Increment replyCount in Firebase
+    await Discussion.incrementCounters(discussionId, { replyCount: 1 });
 
-    // Fetch the created reply with user data
+    // Fetch the created reply with user data (still Sequelize)
     const createdReply = await DiscussionReply.findByPk(reply.id, {
       include: [
         {
           model: User,
-          as: 'user',
-          attributes: ['id', 'username', 'firstName', 'lastName', 'profilePicture']
-        }
-      ]
+          as: "user",
+          attributes: [
+            "id",
+            "username",
+            "firstName",
+            "lastName",
+            "profilePicture",
+          ],
+        },
+      ],
     });
 
     res.status(201).json({
       success: true,
-      data: createdReply
+      data: createdReply,
     });
-
   } catch (error) {
-    console.error('Error creating reply:', error);
+    console.error("Error creating reply:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to create reply',
-      message: error.message
+      error: "Failed to create reply",
+      message: error.message,
     });
   }
 });
