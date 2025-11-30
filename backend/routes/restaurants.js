@@ -1,10 +1,21 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { Restaurant, Review, User, Favorite } = require('../models');
-const { Op } = require('sequelize');
+
+// Use Firebase-based Restaurant model directly
+const Restaurant = require("../models/Restaurant");
+
+// Helper: normalize query param to array
+function asArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  return [value];
+}
+
+// Helper: price range order for sorting
+const PRICE_ORDER = { "$": 1, "$$": 2, "$$$": 3, "$$$$": 4 };
 
 // GET all restaurants with advanced filtering
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const {
       priceRange,
@@ -21,214 +32,226 @@ router.get('/', async (req, res) => {
       search,
       sortBy,
       limit = 50,
-      offset = 0
+      offset = 0,
     } = req.query;
 
-    // Build filter conditions
-    const where = { isActive: true };
+    const limitNum = parseInt(limit, 10) || 50;
+    const offsetNum = parseInt(offset, 10) || 0;
 
-    if (priceRange) {
-      const prices = Array.isArray(priceRange) ? priceRange : [priceRange];
-      where.priceRange = { [Op.in]: prices };
+    // Fetch all active restaurants from Firebase
+    let restaurants = await Restaurant.findAll();
+    restaurants = restaurants.filter((r) => r.isActive !== false);
+
+    // Build filters (done in JS instead of SQL)
+    const priceRanges = asArray(priceRange);
+    const cuisineTypes = asArray(cuisineType);
+    const atmospheres = asArray(atmosphere);
+
+    if (priceRanges.length > 0) {
+      restaurants = restaurants.filter((r) =>
+        priceRanges.includes(r.priceRange)
+      );
     }
 
-    if (cuisineType) {
-      const cuisines = Array.isArray(cuisineType) ? cuisineType : [cuisineType];
-      where.cuisineType = { [Op.overlap]: cuisines };
+    if (cuisineTypes.length > 0) {
+      restaurants = restaurants.filter((r) => {
+        const arr = Array.isArray(r.cuisineType) ? r.cuisineType : [];
+        return arr.some((c) => cuisineTypes.includes(c));
+      });
     }
 
-    if (atmosphere) {
-      const atmospheres = Array.isArray(atmosphere) ? atmosphere : [atmosphere];
-      where.atmosphere = { [Op.overlap]: atmospheres };
+    if (atmospheres.length > 0) {
+      restaurants = restaurants.filter((r) => {
+        const arr = Array.isArray(r.atmosphere) ? r.atmosphere : [];
+        return arr.some((a) => atmospheres.includes(a));
+      });
     }
 
-    if (isStudyFriendly === 'true') {
-      where.isStudyFriendly = true;
+    if (isStudyFriendly === "true") {
+      restaurants = restaurants.filter((r) => r.isStudyFriendly === true);
     }
-
-    if (hasWifi === 'true') {
-      where.hasWifi = true;
+    if (hasWifi === "true") {
+      restaurants = restaurants.filter((r) => r.hasWifi === true);
     }
-
-    if (hasOutdoorSeating === 'true') {
-      where.hasOutdoorSeating = true;
+    if (hasOutdoorSeating === "true") {
+      restaurants = restaurants.filter((r) => r.hasOutdoorSeating === true);
     }
-
-    if (hasParking === 'true') {
-      where.hasParking = true;
+    if (hasParking === "true") {
+      restaurants = restaurants.filter((r) => r.hasParking === true);
     }
-
-    if (isVegetarianFriendly === 'true') {
-      where.isVegetarianFriendly = true;
+    if (isVegetarianFriendly === "true") {
+      restaurants = restaurants.filter(
+        (r) => r.isVegetarianFriendly === true
+      );
     }
-
-    if (isVeganFriendly === 'true') {
-      where.isVeganFriendly = true;
+    if (isVeganFriendly === "true") {
+      restaurants = restaurants.filter((r) => r.isVeganFriendly === true);
     }
-
-    if (isGlutenFreeFriendly === 'true') {
-      where.isGlutenFreeFriendly = true;
+    if (isGlutenFreeFriendly === "true") {
+      restaurants = restaurants.filter(
+        (r) => r.isGlutenFreeFriendly === true
+      );
     }
 
     if (minRating) {
-      where.averageRating = { [Op.gte]: parseFloat(minRating) };
+      const min = parseFloat(minRating);
+      restaurants = restaurants.filter(
+        (r) => (Number(r.averageRating) || 0) >= min
+      );
     }
 
     if (search) {
-      where[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } },
-        { address: { [Op.iLike]: `%${search}%` } }
-      ];
+      const q = String(search).toLowerCase();
+      restaurants = restaurants.filter((r) => {
+        const name = (r.name || "").toLowerCase();
+        const desc = (r.description || "").toLowerCase();
+        const addr = (r.address || "").toLowerCase();
+        return (
+          name.includes(q) || desc.includes(q) || addr.includes(q)
+        );
+      });
     }
 
-    // Determine sorting
-    let order = [['averageRating', 'DESC'], ['totalReviews', 'DESC']];
-    if (sortBy === 'name') {
-      order = [['name', 'ASC']];
-    } else if (sortBy === 'price_low') {
-      order = [['priceRange', 'ASC']];
-    } else if (sortBy === 'price_high') {
-      order = [['priceRange', 'DESC']];
-    } else if (sortBy === 'rating') {
-      order = [['averageRating', 'DESC']];
-    } else if (sortBy === 'popular') {
-      order = [['totalLikes', 'DESC'], ['totalReviews', 'DESC']];
-    }
+    // Sorting
+    restaurants.sort((a, b) => {
+      if (sortBy === "name") {
+        return (a.name || "").localeCompare(b.name || "");
+      }
 
-    const restaurants = await Restaurant.findAll({
-      where,
-      order,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-      include: [
-        {
-          model: Review,
-          as: 'reviews',
-          limit: 3,
-          order: [['createdAt', 'DESC']],
-          include: [
-            {
-              model: User,
-              as: 'user',
-              attributes: ['id', 'username', 'firstName', 'lastName', 'profilePicture']
-            }
-          ]
-        }
-      ]
+      if (sortBy === "price_low") {
+        return (
+          (PRICE_ORDER[a.priceRange] || 0) -
+          (PRICE_ORDER[b.priceRange] || 0)
+        );
+      }
+
+      if (sortBy === "price_high") {
+        return (
+          (PRICE_ORDER[b.priceRange] || 0) -
+          (PRICE_ORDER[a.priceRange] || 0)
+        );
+      }
+
+      if (sortBy === "rating") {
+        const ra = Number(a.averageRating) || 0;
+        const rb = Number(b.averageRating) || 0;
+        return rb - ra;
+      }
+
+      if (sortBy === "popular") {
+        const la = Number(a.totalLikes) || 0;
+        const lb = Number(b.totalLikes) || 0;
+        if (lb !== la) return lb - la;
+
+        const ta = Number(a.totalReviews) || 0;
+        const tb = Number(b.totalReviews) || 0;
+        return tb - ta;
+      }
+
+      // default: rating desc, then totalReviews desc
+      const ra = Number(a.averageRating) || 0;
+      const rb = Number(b.averageRating) || 0;
+      if (rb !== ra) return rb - ra;
+
+      const ta = Number(a.totalReviews) || 0;
+      const tb = Number(b.totalReviews) || 0;
+      return tb - ta;
     });
 
-    const total = await Restaurant.count({ where });
+    const total = restaurants.length;
+    const paged = restaurants
+      .slice(offsetNum, offsetNum + limitNum)
+      .map((r) => r.toSafeObject());
 
     res.json({
       success: true,
-      data: restaurants,
+      data: paged,
       pagination: {
         total,
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        hasMore: parseInt(offset) + restaurants.length < total
-      }
+        limit: limitNum,
+        offset: offsetNum,
+        hasMore: offsetNum + paged.length < total,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching restaurants:', error);
+    console.error("Error fetching restaurants:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch restaurants',
-      message: error.message
+      error: "Failed to fetch restaurants",
+      message: error.message,
     });
   }
 });
 
 // GET single restaurant by ID
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
-    const restaurant = await Restaurant.findByPk(req.params.id, {
-      include: [
-        {
-          model: Review,
-          as: 'reviews',
-          include: [
-            {
-              model: User,
-              as: 'user',
-              attributes: ['id', 'username', 'firstName', 'lastName', 'profilePicture']
-            }
-          ],
-          order: [['createdAt', 'DESC']]
-        }
-      ]
-    });
+    const restaurant = await Restaurant.findById(req.params.id);
 
     if (!restaurant) {
       return res.status(404).json({
         success: false,
-        error: 'Restaurant not found'
+        error: "Restaurant not found",
       });
     }
 
+    // For now this returns just the restaurant.
+    // Once Review is on Firebase, we can attach reviews here again.
     res.json({
       success: true,
-      data: restaurant
+      data: restaurant.toSafeObject(),
     });
-
   } catch (error) {
-    console.error('Error fetching restaurant:', error);
+    console.error("Error fetching restaurant:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch restaurant',
-      message: error.message
+      error: "Failed to fetch restaurant",
+      message: error.message,
     });
   }
 });
 
 // GET filter options (for UI dropdowns)
-router.get('/meta/filters', async (req, res) => {
+router.get("/meta/filters", async (req, res) => {
   try {
-    const cuisineTypes = await Restaurant.findAll({
-      attributes: ['cuisineType'],
-      where: { isActive: true }
+    const restaurants = await Restaurant.findAll();
+    const active = restaurants.filter((r) => r.isActive !== false);
+
+    const cuisineTypes = new Set();
+    const atmospheres = new Set();
+
+    active.forEach((r) => {
+      (Array.isArray(r.cuisineType) ? r.cuisineType : []).forEach((c) =>
+        cuisineTypes.add(c)
+      );
+      (Array.isArray(r.atmosphere) ? r.atmosphere : []).forEach((a) =>
+        atmospheres.add(a)
+      );
     });
-
-    const atmospheres = await Restaurant.findAll({
-      attributes: ['atmosphere'],
-      where: { isActive: true }
-    });
-
-    // Extract unique values from arrays
-    const uniqueCuisines = [...new Set(
-      cuisineTypes.flatMap(r => r.cuisineType || [])
-    )].sort();
-
-    const uniqueAtmospheres = [...new Set(
-      atmospheres.flatMap(r => r.atmosphere || [])
-    )].sort();
 
     res.json({
       success: true,
       data: {
-        priceRanges: ['$', '$$', '$$$', '$$$$'],
-        cuisineTypes: uniqueCuisines,
-        atmospheres: uniqueAtmospheres,
+        priceRanges: ["$", "$$", "$$$", "$$$$"],
+        cuisineTypes: Array.from(cuisineTypes).sort(),
+        atmospheres: Array.from(atmospheres).sort(),
         features: [
-          'isStudyFriendly',
-          'hasWifi',
-          'hasOutdoorSeating',
-          'hasParking',
-          'isVegetarianFriendly',
-          'isVeganFriendly',
-          'isGlutenFreeFriendly'
-        ]
-      }
+          "isStudyFriendly",
+          "hasWifi",
+          "hasOutdoorSeating",
+          "hasParking",
+          "isVegetarianFriendly",
+          "isVeganFriendly",
+          "isGlutenFreeFriendly",
+        ],
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching filter options:', error);
+    console.error("Error fetching filter options:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch filter options',
-      message: error.message
+      error: "Failed to fetch filter options",
+      message: error.message,
     });
   }
 });

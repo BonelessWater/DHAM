@@ -1,156 +1,164 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { Favorite, Restaurant, User } = require('../models');
+
+const Favorite = require("../models/Favorite");
+const Restaurant = require("../models/Restaurant");
 
 // GET user's favorite restaurants
-router.get('/user/:userId', async (req, res) => {
+router.get("/user/:userId", async (req, res) => {
   try {
-    const favorites = await Favorite.findAll({
-      where: { userId: req.params.userId },
-      include: [
-        {
-          model: Restaurant,
-          as: 'restaurant'
-        }
-      ],
-      order: [['createdAt', 'DESC']]
+    const userId = req.params.userId;
+
+    // Get favorites from Firebase
+    let favorites = await Favorite.findByUserId(userId);
+
+    // Sort by createdAt DESC
+    favorites.sort((a, b) => {
+      const da = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const db = b.createdAt ? new Date(b.createdAt) : new Date(0);
+      return db - da;
     });
+
+    // Attach restaurant object like original `include: { model: Restaurant }`
+    const result = [];
+    for (const fav of favorites) {
+      const restaurant = await Restaurant.findById(fav.restaurantId);
+      result.push({
+        ...fav.toSafeObject(),
+        restaurant: restaurant ? restaurant.toSafeObject() : null,
+      });
+    }
 
     res.json({
       success: true,
-      data: favorites
+      data: result,
     });
-
   } catch (error) {
-    console.error('Error fetching favorites:', error);
+    console.error("Error fetching favorites:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch favorites',
-      message: error.message
+      error: "Failed to fetch favorites",
+      message: error.message,
     });
   }
 });
 
 // POST - Add restaurant to favorites
-router.post('/', async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const { userId, restaurantId, notes } = req.body;
 
     if (!userId || !restaurantId) {
       return res.status(400).json({
         success: false,
-        error: 'userId and restaurantId are required'
+        error: "userId and restaurantId are required",
       });
     }
 
-    // Check if already favorited
-    const existing = await Favorite.findOne({
-      where: { userId, restaurantId }
-    });
-
-    if (existing) {
-      return res.status(400).json({
-        success: false,
-        error: 'Restaurant already in favorites'
-      });
+    // Create favorite in Firebase (model prevents duplicates)
+    let favorite;
+    try {
+      favorite = await Favorite.create({ userId, restaurantId, notes });
+    } catch (err) {
+      if (err.message.includes("already in favorites")) {
+        return res.status(400).json({
+          success: false,
+          error: "Restaurant already in favorites",
+        });
+      }
+      throw err;
     }
 
-    const favorite = await Favorite.create({
-      userId,
-      restaurantId,
-      notes
-    });
-
-    // Update restaurant total likes
-    const restaurant = await Restaurant.findByPk(restaurantId);
-    if (restaurant) {
-      await restaurant.update({
-        totalLikes: restaurant.totalLikes + 1
-      });
-    }
+    // Update restaurant totalLikes (Firebase Restaurant model)
+    await Restaurant.incrementCounters(restaurantId, { totalLikes: 1 });
 
     res.status(201).json({
       success: true,
-      data: favorite
+      data: favorite.toSafeObject(),
     });
-
   } catch (error) {
-    console.error('Error adding favorite:', error);
+    console.error("Error adding favorite:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to add favorite',
-      message: error.message
+      error: "Failed to add favorite",
+      message: error.message,
     });
   }
 });
 
 // DELETE - Remove restaurant from favorites
-router.delete('/', async (req, res) => {
+router.delete("/", async (req, res) => {
   try {
     const { userId, restaurantId } = req.body;
 
     if (!userId || !restaurantId) {
       return res.status(400).json({
         success: false,
-        error: 'userId and restaurantId are required'
+        error: "userId and restaurantId are required",
       });
     }
 
-    const deleted = await Favorite.destroy({
-      where: { userId, restaurantId }
-    });
+    // Find the favorite row first
+    const favorite = await Favorite.findByUserAndRestaurant(
+      userId,
+      restaurantId
+    );
 
-    if (deleted === 0) {
+    if (!favorite) {
       return res.status(404).json({
         success: false,
-        error: 'Favorite not found'
+        error: "Favorite not found",
       });
     }
 
-    // Update restaurant total likes
-    const restaurant = await Restaurant.findByPk(restaurantId);
-    if (restaurant && restaurant.totalLikes > 0) {
-      await restaurant.update({
-        totalLikes: restaurant.totalLikes - 1
+    await Favorite.delete(favorite.id);
+
+    // Decrement restaurant totalLikes (but don't go below 0)
+    const restaurant = await Restaurant.findById(restaurantId);
+    if (restaurant) {
+      const newLikes = Math.max(
+        0,
+        Number(restaurant.totalLikes || 0) - 1
+      );
+      await Restaurant.update(restaurantId, {
+        totalLikes: newLikes,
       });
     }
 
     res.json({
       success: true,
-      message: 'Favorite removed'
+      message: "Favorite removed",
     });
-
   } catch (error) {
-    console.error('Error removing favorite:', error);
+    console.error("Error removing favorite:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to remove favorite',
-      message: error.message
+      error: "Failed to remove favorite",
+      message: error.message,
     });
   }
 });
 
 // GET - Check if restaurant is favorited by user
-router.get('/check/:userId/:restaurantId', async (req, res) => {
+router.get("/check/:userId/:restaurantId", async (req, res) => {
   try {
-    const favorite = await Favorite.findOne({
-      where: {
-        userId: req.params.userId,
-        restaurantId: req.params.restaurantId
-      }
-    });
+    const { userId, restaurantId } = req.params;
+
+    const favorite = await Favorite.findByUserAndRestaurant(
+      userId,
+      restaurantId
+    );
 
     res.json({
       success: true,
-      isFavorited: !!favorite
+      isFavorited: !!favorite,
     });
-
   } catch (error) {
-    console.error('Error checking favorite:', error);
+    console.error("Error checking favorite:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to check favorite',
-      message: error.message
+      error: "Failed to check favorite",
+      message: error.message,
     });
   }
 });

@@ -1,6 +1,10 @@
 // backend/models/Discussion.js
 const db = require("../config/database");
-const { v4: uuidv4 } = require("uuid");
+const { randomUUID } = require("crypto");
+
+// keep this so the rest of your code doesn't have to change
+const uuidv4 = () => randomUUID();
+
 
 // Allowed categories from your ENUM
 const ALLOWED_CATEGORIES = [

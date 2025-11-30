@@ -1,7 +1,12 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { Restaurant, User, Review, Favorite } = require('../models');
-const { Op } = require('sequelize');
+
+const User = require("../models/User");
+const Restaurant = require("../models/Restaurant");
+const Favorite = require("../models/Favorite");
+
+// Helper: normalize instance/plain object
+const asPlain = (obj) => (obj && obj.toSafeObject ? obj.toSafeObject() : obj || {});
 
 // Helper function to calculate restaurant score for a user
 const calculateRestaurantScore = (restaurant, user) => {
@@ -10,8 +15,10 @@ const calculateRestaurantScore = (restaurant, user) => {
   // Match cuisine preferences (40% weight)
   const userCuisines = user.cuisinePreferences || [];
   const restaurantCuisines = restaurant.cuisineType || [];
-  const matchingCuisines = userCuisines.filter(c =>
-    restaurantCuisines.some(rc => rc.toLowerCase().includes(c.toLowerCase()))
+  const matchingCuisines = userCuisines.filter((c) =>
+    restaurantCuisines.some((rc) =>
+      rc.toLowerCase().includes(c.toLowerCase())
+    )
   );
   if (userCuisines.length > 0) {
     score += (matchingCuisines.length / userCuisines.length) * 40;
@@ -20,7 +27,7 @@ const calculateRestaurantScore = (restaurant, user) => {
   // Match atmosphere preferences (25% weight)
   const userAtmospheres = user.atmospherePreferences || [];
   const restaurantAtmospheres = restaurant.atmosphere || [];
-  const matchingAtmospheres = userAtmospheres.filter(a =>
+  const matchingAtmospheres = userAtmospheres.filter((a) =>
     restaurantAtmospheres.includes(a)
   );
   if (userAtmospheres.length > 0) {
@@ -32,7 +39,7 @@ const calculateRestaurantScore = (restaurant, user) => {
     score += 15;
   } else {
     // Partial score for adjacent price ranges
-    const priceMap = { '$': 1, '$$': 2, '$$$': 3, '$$$$': 4 };
+    const priceMap = { "$": 1, "$$": 2, "$$$": 3, "$$$$": 4 };
     const userPrice = priceMap[user.priceRange] || 2;
     const restPrice = priceMap[restaurant.priceRange] || 2;
     const diff = Math.abs(userPrice - restPrice);
@@ -45,89 +52,11 @@ const calculateRestaurantScore = (restaurant, user) => {
   }
 
   // Average rating bonus (10% weight)
-  score += (restaurant.averageRating / 5) * 10;
+  const avg = Number(restaurant.averageRating || 0);
+  score += (avg / 5) * 10;
 
   return Math.round(score);
 };
-
-// GET recommended restaurants for a user
-router.get('/user/:userId', async (req, res) => {
-  try {
-    const { limit = 10, minScore = 40, excludeFavorites = false } = req.query;
-    const userId = req.params.userId;
-
-    const user = await User.findByPk(userId);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
-    }
-
-    // Get user's favorite restaurants if we need to exclude them
-    let excludedIds = [];
-    if (excludeFavorites === 'true') {
-      const favorites = await Favorite.findAll({
-        where: { userId },
-        attributes: ['restaurantId']
-      });
-      excludedIds = favorites.map(f => f.restaurantId);
-    }
-
-    // Get all active restaurants
-    const where = { isActive: true };
-    if (excludedIds.length > 0) {
-      where.id = { [Op.notIn]: excludedIds };
-    }
-
-    const restaurants = await Restaurant.findAll({
-      where,
-      include: [
-        {
-          model: Review,
-          as: 'reviews',
-          limit: 3,
-          order: [['createdAt', 'DESC']],
-          include: [
-            {
-              model: User,
-              as: 'user',
-              attributes: ['id', 'username', 'firstName', 'lastName']
-            }
-          ]
-        }
-      ]
-    });
-
-    // Calculate scores and sort
-    const recommendations = restaurants
-      .map(restaurant => {
-        const score = calculateRestaurantScore(restaurant, user);
-        return {
-          restaurant,
-          recommendationScore: score,
-          matchReasons: getMatchReasons(restaurant, user)
-        };
-      })
-      .filter(r => r.recommendationScore >= parseInt(minScore))
-      .sort((a, b) => b.recommendationScore - a.recommendationScore)
-      .slice(0, parseInt(limit));
-
-    res.json({
-      success: true,
-      data: recommendations
-    });
-
-  } catch (error) {
-    console.error('Error getting recommendations:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get recommendations',
-      message: error.message
-    });
-  }
-});
 
 // Helper function to explain why a restaurant was recommended
 const getMatchReasons = (restaurant, user) => {
@@ -136,21 +65,25 @@ const getMatchReasons = (restaurant, user) => {
   // Check cuisine match
   const userCuisines = user.cuisinePreferences || [];
   const restaurantCuisines = restaurant.cuisineType || [];
-  const matchingCuisines = userCuisines.filter(c =>
-    restaurantCuisines.some(rc => rc.toLowerCase().includes(c.toLowerCase()))
+  const matchingCuisines = userCuisines.filter((c) =>
+    restaurantCuisines.some((rc) =>
+      rc.toLowerCase().includes(c.toLowerCase())
+    )
   );
   if (matchingCuisines.length > 0) {
-    reasons.push(`Matches your cuisine preferences: ${matchingCuisines.join(', ')}`);
+    reasons.push(
+      `Matches your cuisine preferences: ${matchingCuisines.join(", ")}`
+    );
   }
 
   // Check atmosphere match
   const userAtmospheres = user.atmospherePreferences || [];
   const restaurantAtmospheres = restaurant.atmosphere || [];
-  const matchingAtmospheres = userAtmospheres.filter(a =>
+  const matchingAtmospheres = userAtmospheres.filter((a) =>
     restaurantAtmospheres.includes(a)
   );
   if (matchingAtmospheres.length > 0) {
-    reasons.push(`${matchingAtmospheres.join(', ')} atmosphere`);
+    reasons.push(`${matchingAtmospheres.join(", ")} atmosphere`);
   }
 
   // Check price range
@@ -160,77 +93,157 @@ const getMatchReasons = (restaurant, user) => {
 
   // Check study spot
   if (user.studySpotPreference && restaurant.isStudyFriendly) {
-    reasons.push('Great for studying');
+    reasons.push("Great for studying");
   }
 
   // Check dietary preferences
   const userFood = user.foodPreferences || [];
-  if (userFood.includes('vegetarian') && restaurant.isVegetarianFriendly) {
-    reasons.push('Vegetarian-friendly');
+  if (userFood.includes("vegetarian") && restaurant.isVegetarianFriendly) {
+    reasons.push("Vegetarian-friendly");
   }
-  if (userFood.includes('vegan') && restaurant.isVeganFriendly) {
-    reasons.push('Vegan options available');
+  if (userFood.includes("vegan") && restaurant.isVeganFriendly) {
+    reasons.push("Vegan options available");
   }
 
   // Check features
   if (restaurant.hasWifi) {
-    reasons.push('Has WiFi');
+    reasons.push("Has WiFi");
   }
 
   // High rating
-  if (restaurant.averageRating >= 4.5) {
-    reasons.push(`Highly rated (${restaurant.averageRating} stars)`);
+  const avg = Number(restaurant.averageRating || 0);
+  if (avg >= 4.5) {
+    reasons.push(`Highly rated (${avg} stars)`);
   }
 
   return reasons;
 };
 
+// GET recommended restaurants for a user
+router.get("/user/:userId", async (req, res) => {
+  try {
+    const { limit = 10, minScore = 40, excludeFavorites = false } = req.query;
+    const userId = req.params.userId;
+
+    const userInstance = await User.findById(userId);
+    if (!userInstance) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+    const user = asPlain(userInstance);
+
+    // Get user's favorite restaurants if we need to exclude them
+    let excludedIds = [];
+    if (excludeFavorites === "true") {
+      const favorites = await Favorite.findByUserId(userId);
+      excludedIds = favorites.map((f) => f.restaurantId);
+    }
+
+    // Get all active restaurants from Firebase
+    const allRestaurants = await Restaurant.findAll(); // assumes this exists
+    const activeRestaurants = allRestaurants
+      .map(asPlain)
+      .filter(
+        (r) =>
+          r.isActive !== false &&
+          (!excludedIds.length || !excludedIds.includes(r.id))
+      );
+
+    const minScoreInt = parseInt(minScore, 10) || 0;
+    const limitInt = parseInt(limit, 10) || 10;
+
+    // Calculate scores and sort
+    const recommendations = activeRestaurants
+      .map((restaurant) => {
+        const recommendationScore = calculateRestaurantScore(
+          restaurant,
+          user
+        );
+        return {
+          restaurant,
+          recommendationScore,
+          matchReasons: getMatchReasons(restaurant, user),
+        };
+      })
+      .filter((r) => r.recommendationScore >= minScoreInt)
+      .sort((a, b) => b.recommendationScore - a.recommendationScore)
+      .slice(0, limitInt);
+
+    res.json({
+      success: true,
+      data: recommendations,
+    });
+  } catch (error) {
+    console.error("Error getting recommendations:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to get recommendations",
+      message: error.message,
+    });
+  }
+});
+
 // GET similar restaurants (based on a specific restaurant)
-router.get('/similar/:restaurantId', async (req, res) => {
+router.get("/similar/:restaurantId", async (req, res) => {
   try {
     const { limit = 5 } = req.query;
     const restaurantId = req.params.restaurantId;
 
-    const baseRestaurant = await Restaurant.findByPk(restaurantId);
-
-    if (!baseRestaurant) {
+    const baseInstance = await Restaurant.findById(restaurantId);
+    if (!baseInstance) {
       return res.status(404).json({
         success: false,
-        error: 'Restaurant not found'
+        error: "Restaurant not found",
       });
     }
+    const baseRestaurant = asPlain(baseInstance);
 
-    // Find restaurants with similar attributes
-    const where = {
-      isActive: true,
-      id: { [Op.ne]: restaurantId }
-    };
+    const allRestaurants = await Restaurant.findAll();
+    const candidates = allRestaurants
+      .map(asPlain)
+      .filter((r) => r.id !== restaurantId && r.isActive !== false);
 
-    // Try to match price range and cuisine
-    const similar = await Restaurant.findAll({
-      where: {
-        ...where,
-        [Op.or]: [
-          { priceRange: baseRestaurant.priceRange },
-          { cuisineType: { [Op.overlap]: baseRestaurant.cuisineType } },
-          { atmosphere: { [Op.overlap]: baseRestaurant.atmosphere } }
-        ]
-      },
-      order: [['averageRating', 'DESC']],
-      limit: parseInt(limit)
-    });
+    const limitInt = parseInt(limit, 10) || 5;
+
+    const baseCuisines = baseRestaurant.cuisineType || [];
+    const baseAtmosphere = baseRestaurant.atmosphere || [];
+    const basePrice = baseRestaurant.priceRange;
+
+    const similar = candidates
+      .filter((r) => {
+        const samePrice = r.priceRange === basePrice;
+
+        const cuisines = r.cuisineType || [];
+        const atmos = r.atmosphere || [];
+
+        const cuisineOverlap = baseCuisines.some((c) =>
+          cuisines.includes(c)
+        );
+        const atmosphereOverlap = baseAtmosphere.some((a) =>
+          atmos.includes(a)
+        );
+
+        return samePrice || cuisineOverlap || atmosphereOverlap;
+      })
+      .sort((a, b) => {
+        const ra = Number(a.averageRating || 0);
+        const rb = Number(b.averageRating || 0);
+        return rb - ra;
+      })
+      .slice(0, limitInt);
 
     res.json({
       success: true,
-      data: similar
+      data: similar,
     });
-
   } catch (error) {
-    console.error('Error getting similar restaurants:', error);
+    console.error("Error getting similar restaurants:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to get similar restaurants',
-      message: error.message
+      error: "Failed to get similar restaurants",
+      message: error.message,
     });
   }
 });

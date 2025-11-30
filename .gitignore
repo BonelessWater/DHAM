@@ -2,6 +2,7 @@
 node_modules/
 backend/.env
 backend/logs/
+backend/serviceAccountKey.json
 
 # Frontend
 frontend/build/

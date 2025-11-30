@@ -1,10 +1,8 @@
 const express = require("express");
 const router = express.Router();
 
-// Use the new Firebase-based Discussion model directly
 const Discussion = require("../models/Discussion");
-// Keep Sequelize-based models for now (for replies + user info)
-const { DiscussionReply, User } = require("../models");
+const DiscussionReply = require("../models/DiscussionReply");
 
 // Helper: sorting functions
 function sortDiscussions(discussions, sortBy) {
