@@ -2,36 +2,37 @@ import 'package:flutter/material.dart';
 import 'sign_up_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-	const LoginScreen({super.key});
+  const LoginScreen({super.key});
 
-	@override
-	State<LoginScreen> createState() => _LoginScreenState();
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-	final _formKey = GlobalKey<FormState>();
-	final _emailController = TextEditingController();
-	final _passwordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
 
-    bool _isLoading = false;
-    String? _error;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
-    @override
-    void dispose() {
-        _emailController.dispose();
-        _passwordController.dispose();
-        super.dispose();
-    }
+  bool _isLoading = false;
+  String? _error;
 
-    void _signIn() async {
-        if (!_formKey.currentState!.validate()) return;
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
-        setState(() {
-          _isLoading = true;
-          _error = null;
-        });
+  Future<void> _signIn() async {
+    if (!_formKey.currentState!.validate()) return;
 
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
+    // TEMP: fake sign-in until we add real Firebase auth here
     await Future.delayed(const Duration(seconds: 1));
 
     setState(() {
@@ -42,13 +43,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _navigateToSignUp() {
     Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SignupScreen()),
+      context,
+      MaterialPageRoute(builder: (_) => const SignupScreen()),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext ctx) {
     return Scaffold(
       appBar: AppBar(title: const Text("Login")),
       body: Center(
@@ -67,9 +68,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     Text(
                       "Welcome Back!",
-                      style: Theme.of(context).textTheme.headlineSmall,
+                      style: Theme.of(ctx).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 24),
+
+                    // Email
                     TextFormField(
                       controller: _emailController,
                       decoration: const InputDecoration(
@@ -87,6 +90,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
+
+                    // Password
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
@@ -99,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           return "Please enter a password";
                         }
 
-                        if (value.length < 10){
+                        if (value.length < 10) {
                           return "Password must be at least 10 characters long";
                         }
 
@@ -115,20 +120,24 @@ class _LoginScreenState extends State<LoginScreen> {
                           return "Password must contain at least one number";
                         }
 
-                        if (!RegExp(r'[!@#$%^&*()?~{}|<>;:]').hasMatch(value)) {
-                          return "Password must contain at least one special character (e.g. !@#$%^&*()?~{}|<>;:)";
+                        if (!RegExp(r'[!@#$%^&*()?~{}|<>;:]')
+                            .hasMatch(value)) {
+                          return "Password must contain at least one special character (e.g. !@#\$%^&*()?~{}|<>;:)";
                         }
 
                         return null;
                       },
                     ),
                     const SizedBox(height: 24),
-                    if (_error != null)
+
+                    if (_error != null) ...[
                       Text(
                         _error!,
                         style: const TextStyle(color: Colors.red),
                       ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 12),
+                    ],
+
                     ElevatedButton(
                       onPressed: _isLoading ? null : _signIn,
                       style: ElevatedButton.styleFrom(
@@ -139,9 +148,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           : const Text("Sign In"),
                     ),
                     const SizedBox(height: 16),
+
                     TextButton(
                       onPressed: _navigateToSignUp,
-                      child: const Text("Don’t have an account yet? Sign up"),
+                      child: const Text("Don't have an account yet? Sign up"),
                     ),
                   ],
                 ),
@@ -152,3 +162,4 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}

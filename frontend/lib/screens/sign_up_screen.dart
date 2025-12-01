@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'auth_service.dart';
+
+import '../screens/login_screen.dart';
+import '../services/auth_service.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -11,14 +13,15 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
+
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
   bool _isLoading = false;
   String? _error;
-  bool _obscure = true;
 
-  final_auth = AuthService();
+  final AuthService _auth = AuthService();
 
   @override
   void dispose() {
@@ -26,6 +29,19 @@ class _SignupScreenState extends State<SignupScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  String _mapFirebaseError(String code) {
+    switch (code) {
+      case 'email-already-in-use':
+        return 'An account already exists for that email.';
+      case 'invalid-email':
+        return 'The email address is not valid.';
+      case 'weak-password':
+        return 'The password is too weak.';
+      default:
+        return 'Signup failed. Please try again.';
+    }
   }
 
   Future<void> _signUp() async {
@@ -36,38 +52,53 @@ class _SignupScreenState extends State<SignupScreen> {
       _error = null;
     });
 
-      try {
-        await _auth.signUpWithEmail(
-            name: _nameController.text.trim(),
-            email: _emailController.text.trim(),
-            password: _passwordController.text,
-        );
+    try {
+      // This does:
+      // 1) FirebaseAuth createUserWithEmailAndPassword
+      // 2) getIdToken()
+      // 3) POST to /api/users/sync with the token
+      await _auth.signUpWithEmail(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
 
-        if (!mounted) return;
+      if (!mounted) return;
 
-        ScaffoldMessenger.of(context.showSnackbar(
-            const SnackBar(content: Text('New Account Successfully Created!')),
-        );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New account successfully created!')),
+      );
 
-        Navigator.pop(context); // back to login after account was created
-      }
-
-        on FirebaseAuthException catch (e) {
-            if (!mounted) return;
-            setState(() { _error = mapFirebaseError(e.code); });
-      } catch (_) {
-            if (!mounted) return;
-            setState(() { _error = 'Error authorizing new user. Please try again.'; });
-      } finally {
-            if (!mounted) return;
-            setState(() { _isLoading = falses; });
-      }
+      // Back to login after account is created
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = _mapFirebaseError(e.code);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Signup failed: $e';
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   void _navigateToLogin() {
-    Navigator.pop(context); //back to login function
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
   }
-    
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -92,6 +123,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 24),
+
+                    // Name
                     TextFormField(
                       controller: _nameController,
                       decoration: const InputDecoration(
@@ -106,6 +139,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
+
+                    // Email
                     TextFormField(
                       controller: _emailController,
                       decoration: const InputDecoration(
@@ -123,6 +158,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
+
+                    // Password
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
@@ -135,7 +172,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           return "Please enter a password";
                         }
 
-                        if (value.length < 10){
+                        if (value.length < 10) {
                           return "Password must be at least 10 characters long";
                         }
 
@@ -151,20 +188,24 @@ class _SignupScreenState extends State<SignupScreen> {
                           return "Password must contain at least one number";
                         }
 
-                        if (!RegExp(r'[!@#$%^&*()?~{}|<>;:]').hasMatch(value)) {
-                          return "Password must contain at least one special character (e.g. !@#$%^&*()?~{}|<>;:)";
+                        if (!RegExp(r'[!@#$%^&*()?~{}|<>;:]')
+                            .hasMatch(value)) {
+                          return "Password must contain at least one special character (e.g. !@#\$%^&*()?~{}|<>;:)";
                         }
 
                         return null;
                       },
                     ),
                     const SizedBox(height: 24),
-                    if (_error != null)
+
+                    if (_error != null) ...[
                       Text(
                         _error!,
                         style: const TextStyle(color: Colors.red),
                       ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 12),
+                    ],
+
                     ElevatedButton(
                       onPressed: _isLoading ? null : _signUp,
                       style: ElevatedButton.styleFrom(
@@ -175,6 +216,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           : const Text("Sign Up"),
                     ),
                     const SizedBox(height: 16),
+
                     TextButton(
                       onPressed: _navigateToLogin,
                       child: const Text("Already have an account? Log in"),
