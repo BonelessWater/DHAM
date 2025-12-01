@@ -1,148 +1,166 @@
 // lib/services/api_service.dart
-// Simple solution using only kIsWeb
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+/// Central API client for your DHAM backend
 class ApiService {
   // Different base URLs for different platforms
-  static const String _baseUrlMobile = 'http://10.0.2.2:8000'; // For mobile (Android emulator)
-  static const String _baseUrlWeb = 'http://localhost:8000'; // For web
-  
-  static String get baseUrl {
-    if (kIsWeb) {
-      return _baseUrlWeb;
-    } else {
-      // For mobile and desktop platforms
-      return _baseUrlMobile;
-    }
-  }
+  static const String _baseUrlMobile = 'http://10.0.2.2:8000'; // Android emulator
+  static const String _baseUrlWeb = 'http://localhost:8000';   // Web / desktop
 
-  // HTTP headers
+  static String get baseUrl => kIsWeb ? _baseUrlWeb : _baseUrlMobile;
+
   static const Map<String, String> _headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   };
 
-  // Health check
+  // ---- Basic checks ----
+
   static Future<Map<String, dynamic>> healthCheck() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/health'),
-        headers: _headers,
-      ).timeout(const Duration(seconds: 10));
+      final res = await http
+          .get(Uri.parse('$baseUrl/health'), headers: _headers)
+          .timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        throw ApiException('Health check failed', response.statusCode);
+      if (res.statusCode == 200) {
+        return json.decode(res.body);
       }
+      throw ApiException('Health check failed', res.statusCode);
     } catch (e) {
       throw ApiException('Connection failed: $e', 0);
     }
   }
 
-  // Test connection
   static Future<Map<String, dynamic>> testConnection() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/api/test'),
-        headers: _headers,
-      ).timeout(const Duration(seconds: 10));
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/test'), headers: _headers)
+          .timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        throw ApiException('Connection test failed', response.statusCode);
+      if (res.statusCode == 200) {
+        return json.decode(res.body);
       }
+      throw ApiException('Connection test failed', res.statusCode);
     } catch (e) {
       throw ApiException('Connection failed: $e', 0);
     }
   }
 
-  // Get users
-  static Future<List<User>> getUsers() async {
+  // ---- Restaurants ----
+
+  /// GET /api/restaurants?limit=…
+  static Future<List<Restaurant>> getRestaurants({int limit = 20}) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/api/users'),
-        headers: _headers,
-      ).timeout(const Duration(seconds: 10));
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/api/restaurants?limit=$limit'),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final users = (data['users'] as List)
-            .map((user) => User.fromJson(user))
-            .toList();
-        return users;
-      } else {
-        throw ApiException('Failed to get users', response.statusCode);
+      if (res.statusCode != 200) {
+        throw ApiException('Failed to get restaurants', res.statusCode);
       }
-    } catch (e) {
-      throw ApiException('Connection failed: $e', 0);
-    }
-  }
 
-  // Create user (POST endpoint)
-  static Future<User> createUser(String name, String email) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/users'),
-        headers: _headers,
-        body: json.encode({'name': name, 'email': email}),
-      ).timeout(const Duration(seconds: 10));
+      final body = json.decode(res.body);
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return User.fromJson(data['user']);
-      } else {
-        throw ApiException('Failed to create user', response.statusCode);
+      if (body['success'] != true) {
+        throw ApiException(
+          'API error: ${body['error'] ?? 'Unknown'}',
+          res.statusCode,
+        );
       }
+
+      final data = body['data'];
+
+      // /api/restaurants returns a list; /api/restaurants/:id would be a single object.
+      final List list;
+      if (data is List) {
+        list = data;
+      } else if (data is Map<String, dynamic>) {
+        list = [data];
+      } else {
+        throw ApiException('Unexpected data format from /api/restaurants', res.statusCode);
+      }
+
+      return list.map<Restaurant>((json) => Restaurant.fromJson(json)).toList();
     } catch (e) {
+      if (e is ApiException) rethrow;
       throw ApiException('Connection failed: $e', 0);
     }
   }
 }
 
-// Custom exception class
+// ---- Error type ----
+
 class ApiException implements Exception {
   final String message;
   final int statusCode;
-  
+
   ApiException(this.message, this.statusCode);
-  
+
   @override
   String toString() => 'ApiException: $message (Status: $statusCode)';
 }
 
-// User model class
-class User {
-  final int id;
-  final String name;
-  final String email;
-  final String? createdAt;
+// ---- Restaurant model used across the app ----
 
-  User({
-    required this.id, 
-    required this.name, 
-    required this.email,
-    this.createdAt,
+class Restaurant {
+  final String id;
+  final String name;
+  final double stars; 
+  final String location;
+  final String description;
+
+  // Optional backend UX-expanded fields
+  final String priceRange;
+  final List<String> atmosphere;
+  final List<String> cuisineType;
+
+  // UI-only fields
+  final List<String> reviews;
+  bool isLiked;
+
+  Restaurant({
+    required this.id,
+    required this.name,
+    required this.stars,
+    required this.location,
+    required this.description,
+    this.priceRange = '\$',
+    this.atmosphere = const [],
+    this.cuisineType = const [],
+    this.reviews = const [],
+    this.isLiked = false,
   });
 
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      id: json['id'],
-      name: json['name'],
-      email: json['email'],
-      createdAt: json['createdAt'],
+  factory Restaurant.fromJson(Map<String, dynamic> json) {
+    final num? avg = json['averageRating'];
+    final double avgRating = avg != null ? avg.toDouble() : 0.0;
+
+    final String address = (json['address'] ?? '') as String;
+    final String city = (json['city'] ?? '') as String;
+    final String state = (json['state'] ?? '') as String;
+
+    final List<String> parts =
+        [address, city, state].where((s) => s.isNotEmpty).toList();
+
+    final String loc = parts.join(', ');
+
+    return Restaurant(
+      id: (json['id'] ?? '') as String,
+      name: (json['name'] ?? '') as String,
+      stars: avgRating,
+      location: loc,
+      description: (json['description'] ?? '') as String,
+      priceRange: (json['priceRange'] ?? '\$') as String,
+      atmosphere: List<String>.from(json['atmosphere'] ?? []),
+      cuisineType: List<String>.from(json['cuisineType'] ?? []),
+      reviews: const [], // backend reviews not implemented yet
+      isLiked: false,
     );
   }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'email': email,
-      if (createdAt != null) 'createdAt': createdAt,
-    };
-  }
 }
+

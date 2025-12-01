@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'restaurant_detail_screen.dart';
+import '../services/api_service.dart';
+
 import 'home_screen.dart'; // For the Restaurant model
 
 class ProfileScreen extends StatelessWidget {
