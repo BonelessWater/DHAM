@@ -2,7 +2,6 @@
 const db = require("../config/database");
 const { randomUUID } = require("crypto");
 
-// keep this so the rest of your code doesn't have to change
 const uuidv4 = () => randomUUID();
 
 const bcrypt = require("bcryptjs");

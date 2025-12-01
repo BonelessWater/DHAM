@@ -82,12 +82,52 @@ class ApiService {
       } else if (data is Map<String, dynamic>) {
         list = [data];
       } else {
-        throw ApiException('Unexpected data format from /api/restaurants', res.statusCode);
+        throw ApiException(
+          'Unexpected data format from /api/restaurants',
+          res.statusCode,
+        );
       }
 
-      return list.map<Restaurant>((json) => Restaurant.fromJson(json)).toList();
+      return list
+          .map<Restaurant>((json) => Restaurant.fromJson(json))
+          .toList();
     } catch (e) {
       if (e is ApiException) rethrow;
+      throw ApiException('Connection failed: $e', 0);
+    }
+  }
+
+  // User profile sync 
+
+  /// POST /api/users/sync
+  static Future<Map<String, dynamic>> syncUserProfile({
+    required String idToken,
+    required String firebaseUid,
+    required String email,
+    required String displayName,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/users/sync'),
+            headers: {
+              ..._headers,
+              'Authorization': 'Bearer $idToken',
+            },
+            body: json.encode({
+              'firebaseUid': firebaseUid,
+              'email': email,
+              'displayName': displayName,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        return json.decode(res.body);
+      }
+
+      throw ApiException('Failed to sync user profile', res.statusCode);
+    } catch (e) {
       throw ApiException('Connection failed: $e', 0);
     }
   }
@@ -110,7 +150,7 @@ class ApiException implements Exception {
 class Restaurant {
   final String id;
   final String name;
-  final double stars; 
+  final double stars;
   final String location;
   final String description;
 
@@ -163,5 +203,3 @@ class Restaurant {
     );
   }
 }
-    
-
