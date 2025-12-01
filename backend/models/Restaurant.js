@@ -78,6 +78,7 @@ class Restaurant {
       // Images
       imageUrl: data.imageUrl || null,
       images: Array.isArray(data.images) ? data.images : [],
+      mapImageUrl: data.mapImageUrl || null,
 
       // Ratings
       averageRating: Number(data.averageRating) || 0,
@@ -148,6 +149,11 @@ class Restaurant {
     ["averageRating", "totalReviews", "totalLikes", "latitude", "longitude"].forEach((n) => {
       if (updates[n] !== undefined)
         merged[n] = updates[n] !== null ? Number(updates[n]) : merged[n];
+    });
+
+    // Handle string fields
+    ["imageUrl", "mapImageUrl", "name", "description", "address", "city", "state", "zipCode", "phone", "website", "hoursOfOperation"].forEach((s) => {
+      if (updates[s] !== undefined) merged[s] = updates[s];
     });
 
     merged.updatedAt = new Date().toISOString();

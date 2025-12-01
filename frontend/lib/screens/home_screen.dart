@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';           
+import '../services/api_service.dart';
+import '../services/auth_service.dart';
+import 'login_screen.dart';
 import 'api_test_screen.dart';
 import 'search_screen.dart';
 import 'profile_screen.dart';
@@ -64,11 +66,25 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _logout() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const ApiTestScreen()),
-    );
+  Future<void> _logout() async {
+    try {
+      await AuthService().signOut();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Logged out successfully')),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error logging out: $e')),
+      );
+    }
   }
 
   void _openProfile() {

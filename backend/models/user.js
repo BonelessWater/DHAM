@@ -7,6 +7,7 @@ const uuidv4 = () => randomUUID();
 const bcrypt = require("bcryptjs");
 
 const ALLOWED_PRICE_RANGES = ["$", "$$", "$$$", "$$$$"];
+const ALLOWED_ROLES = ["member", "admin"];
 
 class User {
   static ref() {
@@ -53,11 +54,14 @@ class User {
       ? data.priceRange
       : "$$";
 
+    const role = ALLOWED_ROLES.includes(data.role) ? data.role : "member";
+
     const user = {
       id,
       username: data.username,
       email: data.email,
       password: hashedPassword,
+      role,
       firstName: data.firstName || null,
       lastName: data.lastName || null,
       bio: data.bio || null,
@@ -187,6 +191,7 @@ class User {
     const updatableFields = [
       "username",
       "email",
+      "role",
       "firstName",
       "lastName",
       "bio",
@@ -224,6 +229,10 @@ class User {
           merged[field] = ALLOWED_PRICE_RANGES.includes(updates[field])
             ? updates[field]
             : merged[field] || "$$";
+        } else if (field === "role") {
+          merged[field] = ALLOWED_ROLES.includes(updates[field])
+            ? updates[field]
+            : merged[field] || "member";
         } else if (field === "latitude" || field === "longitude") {
           merged[field] =
             updates[field] !== null && updates[field] !== undefined
