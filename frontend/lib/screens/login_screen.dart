@@ -102,14 +102,16 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Login")),
+      appBar: AppBar(title: const Text("Gator Food Finder"),
+      backgroundColor: Colors.orange,
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Card(
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 4,
+            elevation: 6,
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Form(
@@ -117,9 +119,29 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Image.asset(
+                      'images/gatorLogo.png',
+                      height: 100,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(height: 16),
+
                     Text(
-                      "Welcome Back!",
-                      style: Theme.of(context).textTheme.headlineSmall,
+                      "Gator Food Finder",
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF0021A5),
+                          ),
+                      ),
+                    const SizedBox(height: 8),
+
+                    const Text(
+                      "Welcome Back! Log in to find your next spot.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                      ),
                     ),
                     const SizedBox(height: 24),
 

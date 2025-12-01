@@ -102,7 +102,9 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Create Account")),
+      appBar: AppBar(title: const Text("Create Account"),
+      backgroundColor: Colors.orange,
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -110,7 +112,7 @@ class _SignupScreenState extends State<SignupScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            elevation: 4,
+            elevation: 6,
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Form(
@@ -118,9 +120,28 @@ class _SignupScreenState extends State<SignupScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Image.asset(
+                      'images/gatorLogo.png',
+                      height: 100,
+                      fit: BoxFit.contain,
+                    ),
+
                     Text(
-                      "Sign Up",
-                      style: Theme.of(context).textTheme.headlineSmall,
+                      "Gator Food Finder",
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF0021A5),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    Text(
+                      "Welcome to Gator Food Finder! Sign up to get started.",
+                      textAlign: TextAlign.center,
+                      style:TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[700],
+                      ),
                     ),
                     const SizedBox(height: 24),
 
