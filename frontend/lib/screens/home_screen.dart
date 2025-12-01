@@ -1,6 +1,5 @@
-// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';           // ⬅️ NEW
+import '../services/api_service.dart';           
 import 'api_test_screen.dart';
 import 'search_screen.dart';
 import 'profile_screen.dart';

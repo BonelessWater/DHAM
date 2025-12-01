@@ -5,6 +5,90 @@ const jwt = require("jsonwebtoken");
 // Use the Firebase-based User model directly
 const User = require("../models/User");
 
+const requireAuth = require("../userAuth/middleware/requireAuth");
+const db = require("../config/database");
+
+
+// POST - /api/users/sync
+// creates or updates a user based on firebase auth id token
+router.post("/sync", requireAuth, async (req, res) => {
+  try {
+    // from requireAuth (decoded ID token)
+    const { uid, email, name: authName } = req.user;
+
+    // Extra info from frontend (optional for now)
+    const {
+      name,
+      priceRange,
+      location,
+    } = req.body || {};
+
+    const displayName = name || authName || (email ? email.split("@")[0] : "User");
+
+    // We'll store user profile directly in RTDB under /users/{uid}
+    const ref = db.ref(`users/${uid}`);
+
+    // Fetch existing data to preserve createdAt if present
+    const snapshot = await ref.get();
+    const existing = snapshot.exists() ? snapshot.val() : null;
+
+    const nowIso = new Date().toISOString();
+
+    const userData = {
+      id: uid,   // use Firebase uid as our app user id
+      email: email || null,
+      username: displayName,
+      firstName: displayName,
+      lastName: existing?.lastName || null,
+      bio: existing?.bio || null,
+      profilePicture: existing?.profilePicture || null,
+
+      interests: existing?.interests || [],
+      foodPreferences: existing?.foodPreferences || [],
+      dietaryRestrictions: existing?.dietaryRestrictions || [],
+      cuisinePreferences: existing?.cuisinePreferences || [],
+      priceRange: priceRange || existing?.priceRange || "$$",
+      atmospherePreferences: existing?.atmospherePreferences || [],
+      studySpotPreference:
+        typeof existing?.studySpotPreference === "boolean"
+          ? existing.studySpotPreference
+          : false,
+      socialPreference:
+        typeof existing?.socialPreference === "boolean"
+          ? existing.socialPreference
+          : true,
+
+      location: location || existing?.location || null,
+      latitude: existing?.latitude || null,
+      longitude: existing?.longitude || null,
+
+      isActive: existing?.isActive !== false,
+      openToMatching:
+        typeof existing?.openToMatching === "boolean"
+          ? existing.openToMatching
+          : true,
+
+      createdAt: existing?.createdAt || nowIso,
+      updatedAt: nowIso,
+    };
+
+    await ref.set(userData);
+
+    return res.json({
+      success: true,
+      data: userData,
+    });
+  } catch (error) {
+    console.error("Error syncing user:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to sync user",
+      message: error.message,
+    });
+  }
+});
+
+
 // POST - Register a new user
 router.post("/register", async (req, res) => {
   try {
