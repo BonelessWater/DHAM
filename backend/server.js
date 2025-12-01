@@ -28,18 +28,7 @@ app.use(
   })
 );
 
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "http://127.0.0.1:5173",
-      "http://10.0.2.2:8000", // Android emulator
-      "http://localhost:8000", // Flutter web
-    ],
-    credentials: true,
-  })
-);
+app.use(cors());
 
 app.use(morgan("combined"));
 app.use(express.json());

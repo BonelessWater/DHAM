@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'restaurant_detail_screen.dart';
+import '../services/api_service.dart';
+
 
 class SearchScreen extends StatefulWidget {
   final List<Restaurant> allRestaurants;
