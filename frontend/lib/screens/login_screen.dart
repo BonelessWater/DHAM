@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
+import 'admin_home_screen.dart';
 import '../services/auth_service.dart';
 import 'sign_up_screen.dart';
 import 'home_screen.dart';
@@ -45,52 +45,66 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signIn() async {
-    if (!_formKey.currentState!.validate()) return;
+  if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  setState(() {
+    _isLoading = true;
+    _error = null;
+  });
 
-    try {
-      // firebase Auth sign-in
-      final cred = await _auth.signInWithEmail(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+  try {
+    // Firebase Auth sign-in + backend sync
+    final cred = await _auth.signInWithEmail(
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+    );
+
+    if (!mounted) return;
+
+    // Get the backend user (with role field)
+    final backendUser = _auth.currentBackendUser;
+    debugPrint('Logged in backend user role: ${backendUser?.role}');
+
+    // Show welcome toast
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Welcome back, ${cred.user?.email ?? ''}!')),
+    );
+
+    // Decide where to go based on role
+    final role = backendUser?.role?.toLowerCase();
+
+    if (role == 'admin') {
+      // Go to admin home
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const AdminHomeScreen()),
       );
-
-      // firebase login + backend syncUserProfile both succeeded
-      if (!mounted) return;
-
-      // snackbar on success
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Welcome back, ${cred.user?.email ?? ''}!')),
-      );
-
-      // go to Home screen
+    } else {
+      // Normal user home
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      print('FirebaseAuthException on login: ${e.code} - ${e.message}');
-      setState(() {
-        _error = _mapFirebaseError(e.code);
-      });
-    } catch (e) {
-      if (!mounted) return;
-      print('Generic login error: $e');
-      setState(() {
-        _error = 'Error logging in. Please try again.';
-      });
-    } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
     }
+  } on FirebaseAuthException catch (e) {
+    if (!mounted) return;
+    print('FirebaseAuthException on login: ${e.code} - ${e.message}');
+    setState(() {
+      _error = _mapFirebaseError(e.code);
+    });
+  } catch (e) {
+    if (!mounted) return;
+    print('Generic login error: $e');
+    setState(() {
+      _error = 'Error logging in. Please try again.';
+    });
+  } finally {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+    });
   }
+}
 
   void _navigateToSignUp() {
     Navigator.pushReplacement(

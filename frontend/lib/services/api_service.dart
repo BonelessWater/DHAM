@@ -98,9 +98,7 @@ class ApiService {
   }
 
   // User profile sync 
-
-  /// POST /api/users/sync
-  static Future<Map<String, dynamic>> syncUserProfile({
+  static Future<BackendUser> syncUserProfile({
     required String idToken,
     required String firebaseUid,
     required String email,
@@ -122,15 +120,31 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 10));
 
-      if (res.statusCode == 200 || res.statusCode == 201) {
-        return json.decode(res.body);
+      if (res.statusCode != 200 && res.statusCode != 201) {
+        throw ApiException('Failed to sync user profile', res.statusCode);
       }
 
-      throw ApiException('Failed to sync user profile', res.statusCode);
+      final body = json.decode(res.body);
+
+      if (body['success'] != true) {
+        throw ApiException(
+          'API error: ${body['error'] ?? 'Unknown'}',
+          res.statusCode,
+        );
+      }
+
+      // Backend: { success, data: { user, token } }
+      final data = body['data'] as Map<String, dynamic>? ?? {};
+      final userJson =
+          (data['user'] ?? data) as Map<String, dynamic>; // fallback to data
+
+      return BackendUser.fromJson(userJson);
     } catch (e) {
+      if (e is ApiException) rethrow;
       throw ApiException('Connection failed: $e', 0);
     }
   }
+
 }
 
 // ---- Error type ----
@@ -202,4 +216,40 @@ class Restaurant {
       isLiked: false,
     );
   }
+}
+
+class BackendUser {
+  final String id;
+  final String email;
+  final String? username;
+  final String? role;
+  final String? firstName;
+  final String? lastName;
+  final bool isActive;
+  final bool openToMatching;
+
+
+BackendUser({
+  required this.id,
+  required this.email,
+  this.username,
+  this.role,
+  this.firstName,
+  this.lastName,
+  this.isActive = true,
+  this.openToMatching = false,
+});
+
+factory BackendUser.fromJson(Map<String, dynamic> json) {
+  return BackendUser(
+    id: (json['id'] ?? '') as String,
+    email: (json['email'] ?? '') as String,
+    username: json['username'] as String?,
+    role: json['role'] as String?,
+    firstName: json['firstName'] as String?,
+    lastName: json['lastName'] as String?,
+    isActive: (json['isActive'] ?? true) as bool,
+    openToMatching: (json['openToMatching'] ?? false) as bool,
+  );
+}
 }

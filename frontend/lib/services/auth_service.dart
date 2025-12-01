@@ -4,6 +4,9 @@ import 'api_service.dart';
 class AuthService {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
+  BackendUser? _currentBackendUser;
+  BackendUser? get currentBackendUser => _currentBackendUser;
+
   Future<UserCredential> signUpWithEmail({
     required String name,
     required String email,
@@ -20,11 +23,10 @@ class AuthService {
     }
 
     // Force refresh -> always non-null
-    final idToken = await credential.user!.getIdToken(true) ?? '';
-    if (idToken.isEmpty) throw Exception("Failed to retrieve ID token.");
+    final idToken = await credential.user!.getIdToken(true);
 
-    await ApiService.syncUserProfile(
-      idToken: idToken,
+    _currentBackendUser = await ApiService.syncUserProfile(
+      idToken: idToken!,
       firebaseUid: credential.user!.uid,
       email: credential.user!.email ?? email,
       displayName: credential.user!.displayName ?? name,
@@ -43,9 +45,8 @@ class AuthService {
     );
 
     final idToken = await credential.user!.getIdToken(true) ?? '';
-    if (idToken.isEmpty) throw Exception("Failed to retrieve ID token.");
-
-    await ApiService.syncUserProfile(
+    
+    _currentBackendUser = await ApiService.syncUserProfile(
       idToken: idToken,
       firebaseUid: credential.user!.uid,
       email: credential.user!.email ?? email,
@@ -55,7 +56,10 @@ class AuthService {
     return credential;
   }
 
-  Future<void> signOut() async => _firebaseAuth.signOut();
+  Future<void> signOut() async {
+    _currentBackendUser = null;
+    await _firebaseAuth.signOut();
+  }
 
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 }
