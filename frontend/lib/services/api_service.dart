@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../models/review.dart'; // Review model
 
 /// Central API client for your DHAM backend
 class ApiService {
@@ -88,16 +89,16 @@ class ApiService {
         );
       }
 
-      return list
-          .map<Restaurant>((json) => Restaurant.fromJson(json))
-          .toList();
+      return list.map<Restaurant>((j) => Restaurant.fromJson(j)).toList();
     } catch (e) {
       if (e is ApiException) rethrow;
       throw ApiException('Connection failed: $e', 0);
     }
   }
 
-  // User profile sync 
+  // ---- User profile sync (returns BackendUser) ----
+  /// POST /api/users/sync
+  /// Response expected: { success: true, data: { user, token } }
   static Future<BackendUser> syncUserProfile({
     required String idToken,
     required String firebaseUid,
@@ -125,19 +126,12 @@ class ApiService {
       }
 
       final body = json.decode(res.body);
-
       if (body['success'] != true) {
-        throw ApiException(
-          'API error: ${body['error'] ?? 'Unknown'}',
-          res.statusCode,
-        );
+        throw ApiException('API error: ${body['error'] ?? 'Unknown'}', res.statusCode);
       }
 
-      // Backend: { success, data: { user, token } }
-      final data = body['data'] as Map<String, dynamic>? ?? {};
-      final userJson =
-          (data['user'] ?? data) as Map<String, dynamic>; // fallback to data
-
+      final data = (body['data'] as Map<String, dynamic>? ?? {});
+      final userJson = (data['user'] ?? data) as Map<String, dynamic>;
       return BackendUser.fromJson(userJson);
     } catch (e) {
       if (e is ApiException) rethrow;
@@ -145,10 +139,106 @@ class ApiService {
     }
   }
 
+  // ---- Reviews ----
+
+  /// GET /api/reviews/restaurant/:restaurantId?rating=&sortBy=&limit=&offset=
+  static Future<List<Review>> getReviewsForRestaurant(
+    String restaurantId, {
+    int? rating,
+    String? sortBy, // "rating_high" | "rating_low" | "helpful"
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/reviews/restaurant/$restaurantId')
+          .replace(queryParameters: {
+        if (rating != null) 'rating': '$rating',
+        if (sortBy != null) 'sortBy': sortBy,
+        'limit': '$limit',
+        'offset': '$offset',
+      });
+
+      final res = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode != 200) {
+        throw ApiException('Failed to get reviews', res.statusCode);
+      }
+
+      final body = json.decode(res.body) as Map<String, dynamic>;
+      if (body['success'] != true) {
+        throw ApiException('API error: ${body['error'] ?? 'Unknown'}', res.statusCode);
+      }
+
+      final data = (body['data'] as List).cast<Map<String, dynamic>>();
+      return data.map((m) => Review.fromJson(m)).toList();
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Connection failed: $e', 0);
+    }
+  }
+
+  /// POST /api/reviews
+  /// body: { userId, restaurantId, rating(1..5), content, title? }
+  static Future<Review> postReview({
+    required String userId,
+    required String restaurantId,
+    required int rating,
+    required String content,
+    String? title,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/reviews');
+
+      final res = await http
+          .post(uri,
+              headers: _headers,
+              body: json.encode({
+                'userId': userId,
+                'restaurantId': restaurantId,
+                'rating': rating,
+                'content': content,
+                if (title != null && title.trim().isNotEmpty) 'title': title,
+              }))
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode != 201) {
+        throw ApiException('Create review failed', res.statusCode);
+      }
+
+      final body = json.decode(res.body) as Map<String, dynamic>;
+      final data = body['data'] as Map<String, dynamic>;
+      return Review.fromJson(data);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Connection failed: $e', 0);
+    }
+  }
+
+  /// POST /api/reviews/:id/helpful
+  static Future<Review> markReviewHelpful(String reviewId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/reviews/$reviewId/helpful');
+      final res = await http
+          .post(uri, headers: _headers)
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode != 200) {
+        throw ApiException('Helpful failed', res.statusCode);
+      }
+
+      final body = json.decode(res.body) as Map<String, dynamic>;
+      final data = body['data'] as Map<String, dynamic>;
+      return Review.fromJson(data);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Connection failed: $e', 0);
+    }
+  }
 }
 
 // ---- Error type ----
-
 class ApiException implements Exception {
   final String message;
   final int statusCode;
@@ -159,7 +249,7 @@ class ApiException implements Exception {
   String toString() => 'ApiException: $message (Status: $statusCode)';
 }
 
-// ---- Restaurant model used across the app ----
+// ---- Models ----
 
 class Restaurant {
   final String id;
@@ -212,7 +302,7 @@ class Restaurant {
       priceRange: (json['priceRange'] ?? '\$') as String,
       atmosphere: List<String>.from(json['atmosphere'] ?? []),
       cuisineType: List<String>.from(json['cuisineType'] ?? []),
-      reviews: const [], // backend reviews not implemented yet
+      reviews: const [],
       isLiked: false,
     );
   }
@@ -228,28 +318,25 @@ class BackendUser {
   final bool isActive;
   final bool openToMatching;
 
+  BackendUser({
+    required this.id,
+    required this.email,
+    this.username,
+    this.role,
+    this.firstName,
+    this.lastName,
+    this.isActive = true,
+    this.openToMatching = false,
+  });
 
-BackendUser({
-  required this.id,
-  required this.email,
-  this.username,
-  this.role,
-  this.firstName,
-  this.lastName,
-  this.isActive = true,
-  this.openToMatching = false,
-});
-
-factory BackendUser.fromJson(Map<String, dynamic> json) {
-  return BackendUser(
-    id: (json['id'] ?? '') as String,
-    email: (json['email'] ?? '') as String,
-    username: json['username'] as String?,
-    role: json['role'] as String?,
-    firstName: json['firstName'] as String?,
-    lastName: json['lastName'] as String?,
-    isActive: (json['isActive'] ?? true) as bool,
-    openToMatching: (json['openToMatching'] ?? false) as bool,
-  );
-}
+  factory BackendUser.fromJson(Map<String, dynamic> json) => BackendUser(
+        id: (json['id'] ?? '') as String,
+        email: (json['email'] ?? '') as String,
+        username: json['username'] as String?,
+        role: json['role'] as String?,
+        firstName: json['firstName'] as String?,
+        lastName: json['lastName'] as String?,
+        isActive: (json['isActive'] ?? true) as bool,
+        openToMatching: (json['openToMatching'] ?? false) as bool,
+      );
 }
