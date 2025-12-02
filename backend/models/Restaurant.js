@@ -1,8 +1,5 @@
-// backend/models/Restaurant.js
 const db = require("../config/database");
 const { randomUUID } = require("crypto");
-
-// keep this so the rest of your code doesn't have to change
 const uuidv4 = () => randomUUID();
 
 
@@ -16,7 +13,7 @@ class Restaurant {
   static _attachMethods(rest) {
     if (!rest) return null;
 
-    // Safe object (omit nothing for now — ratings have no secrets)
+    // Safe object without methods
     rest.toSafeObject = function () {
       return { ...rest };
     };
@@ -24,9 +21,7 @@ class Restaurant {
     return rest;
   }
 
-  /**
-   * Create a restaurant
-   */
+  // Create a restaurant
   static async create(data) {
     const id = uuidv4();
     const now = new Date().toISOString();
@@ -174,9 +169,7 @@ class Restaurant {
 }
 
 
-  /**
-   * Increment rating + review counters atomically
-   */
+  // Increment counters like totalReviews or totalLikes
   static async incrementCounters(id, counters = {}) {
     const ref = this.ref().child(id);
     await ref.transaction((rest) => {

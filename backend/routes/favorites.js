@@ -19,7 +19,7 @@ router.get("/user/:userId", async (req, res) => {
       return db - da;
     });
 
-    // Attach restaurant object like original `include: { model: Restaurant }`
+    // Attach restaurant object
     const result = [];
     for (const fav of favorites) {
       const restaurant = await Restaurant.findById(fav.restaurantId);
@@ -113,7 +113,7 @@ router.delete("/", async (req, res) => {
 
     await Favorite.delete(favorite.id);
 
-    // Decrement restaurant totalLikes (but don't go below 0)
+    // Decrement restaurant totalLikes
     const restaurant = await Restaurant.findById(restaurantId);
     if (restaurant) {
       const newLikes = Math.max(

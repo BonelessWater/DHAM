@@ -1,7 +1,5 @@
-// backend/models/user.js
 const db = require("../config/database");
 const { randomUUID } = require("crypto");
-
 const uuidv4 = () => randomUUID();
 
 const bcrypt = require("bcryptjs");
@@ -118,9 +116,7 @@ class User {
     return this.attachMethods(user);
   }
 
-  /**
-   * Find user by id
-   */
+  // Find user by ID
   static async findById(id) {
     const snapshot = await this.ref().child(id).once("value");
     if (!snapshot.exists()) return null;
@@ -128,9 +124,7 @@ class User {
     return this.attachMethods(user);
   }
 
-  /**
-   * Find user by email
-   */
+  // Find user by Email
   static async findByEmail(email) {
     const snapshot = await this.ref()
       .orderByChild("email")
@@ -144,9 +138,7 @@ class User {
     return this.attachMethods(user);
   }
 
-  /**
-   * Find user by username
-   */
+  // Find user by username
   static async findByUsername(username) {
     const snapshot = await this.ref()
       .orderByChild("username")
@@ -160,19 +152,14 @@ class User {
     return this.attachMethods(user);
   }
 
-  /**
-   * Get all users
-   */
+  // Get all users
   static async findAll() {
     const snapshot = await this.ref().once("value");
     const data = snapshot.val() || {};
     return Object.values(data).map((u) => this.attachMethods(u));
   }
 
-  /**
-   * Update user by id
-   * If `password` is present in updates, it is re-hashed (like beforeUpdate hook)
-   */
+  // Update user by ID
   static async update(id, updates) {
     const existingSnap = await this.ref().child(id).once("value");
     if (!existingSnap.exists()) return null;
@@ -250,9 +237,7 @@ class User {
     return this.attachMethods(merged);
   }
 
-  /**
-   * Delete user by id
-   */
+  // Delete user by ID
   static async delete(id) {
     await this.ref().child(id).remove();
     return true;

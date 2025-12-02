@@ -139,8 +139,6 @@ router.post("/", async (req, res) => {
       images: images || [],
     });
 
-    // If you eventually want user info attached, you can fetch User here
-    // and merge it in, but for now we just return the discussion object.
     res.status(201).json({
       success: true,
       data: discussion,
@@ -253,8 +251,6 @@ router.post("/:id/like", async (req, res) => {
 });
 
 // POST - Reply to a discussion
-// NOTE: This still uses Sequelize DiscussionReply + User.
-//       Once you move replies to Firebase too, you'll refactor this.
 router.post("/:id/replies", async (req, res) => {
   try {
     const { userId, content, parentReplyId } = req.body;

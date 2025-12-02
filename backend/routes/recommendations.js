@@ -134,7 +134,7 @@ router.get("/user/:userId", async (req, res) => {
     }
     const user = asPlain(userInstance);
 
-    // Get user's favorite restaurants if we need to exclude them
+    // Get user's favorite restaurants
     let excludedIds = [];
     if (excludeFavorites === "true") {
       const favorites = await Favorite.findByUserId(userId);
@@ -142,7 +142,7 @@ router.get("/user/:userId", async (req, res) => {
     }
 
     // Get all active restaurants from Firebase
-    const allRestaurants = await Restaurant.findAll(); // assumes this exists
+    const allRestaurants = await Restaurant.findAll();
     const activeRestaurants = allRestaurants
       .map(asPlain)
       .filter(

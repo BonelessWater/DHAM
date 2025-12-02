@@ -1,8 +1,5 @@
-// backend/models/UserMatch.js
 const db = require("../config/database");
 const { randomUUID } = require("crypto");
-
-// keep this so the rest of your code doesn't have to change
 const uuidv4 = () => randomUUID();
 
 
@@ -21,9 +18,7 @@ class UserMatch {
     return match;
   }
 
-  /**
-   * Create a new match
-   */
+  // Create user match
   static async create(data) {
     const { user1Id, user2Id, matchScore } = data;
 
@@ -93,9 +88,7 @@ class UserMatch {
     return this._attachMethods(snap.val());
   }
 
-  /**
-   * All matches where user is either user1 or user2
-   */
+  // All matches where user is user1 or user2
   static async findByUserId(userId) {
     const [asUser1Snap, asUser2Snap] = await Promise.all([
       this.ref().orderByChild("user1Id").equalTo(userId).once("value"),
@@ -121,9 +114,7 @@ class UserMatch {
     return res;
   }
 
-  /**
-   * Find match between two specific users (ordered pair)
-   */
+  // Find match between two specifc users
   static async findBetweenUsers(user1Id, user2Id) {
     const snap = await this.ref()
       .orderByChild("user1Id")
@@ -137,9 +128,7 @@ class UserMatch {
     return this._attachMethods(match || null);
   }
 
-  /**
-   * Update match by id
-   */
+  // Update match by ID
   static async update(id, updates) {
     const snap = await this.ref().child(id).once("value");
     if (!snap.exists()) return null;

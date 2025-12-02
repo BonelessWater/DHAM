@@ -1,8 +1,5 @@
-// backend/models/DiscussionReply.js
 const db = require("../config/database");
 const { randomUUID } = require("crypto");
-
-// keep this so the rest of your code doesn't have to change
 const uuidv4 = () => randomUUID();
 
 
@@ -43,18 +40,14 @@ class DiscussionReply {
     return reply;
   }
 
-  /**
-   * Find a reply by id
-   */
+  // Find a reply by ID
   static async findById(id) {
     const snapshot = await this.ref().child(id).once("value");
     if (!snapshot.exists()) return null;
     return snapshot.val();
   }
 
-  /**
-   * Get all replies for a discussion
-   */
+  // Find all discussions by ID
   static async findByDiscussionId(discussionId) {
     const snapshot = await this.ref()
       .orderByChild("discussionId")
@@ -65,17 +58,13 @@ class DiscussionReply {
     return Object.values(data);
   }
 
-  /**
-   * Get only top-level replies (parentReplyId == null) for a discussion
-   */
+  
   static async findTopLevelByDiscussionId(discussionId) {
     const replies = await this.findByDiscussionId(discussionId);
     return replies.filter((r) => !r.parentReplyId);
   }
 
-  /**
-   * Get child replies for a given parentReplyId
-   */
+  // Get child replies for Discussion replies
   static async findChildren(parentReplyId) {
     const snapshot = await this.ref()
       .orderByChild("parentReplyId")
@@ -86,9 +75,7 @@ class DiscussionReply {
     return Object.values(data);
   }
 
-  /**
-   * Update a reply by id
-   */
+  // Update a reply by ID
   static async update(id, updates) {
     const existingSnap = await this.ref().child(id).once("value");
     if (!existingSnap.exists()) return null;
@@ -105,17 +92,13 @@ class DiscussionReply {
     return merged;
   }
 
-  /**
-   * Delete a reply by id
-   */
+  // Delete a reply by ID
   static async delete(id) {
     await this.ref().child(id).remove();
     return true;
   }
 
-  /**
-   * Increment likeCount atomically
-   */
+  // Increment like count
   static async incrementLikeCount(id, delta = 1) {
     const ref = this.ref().child(id);
 

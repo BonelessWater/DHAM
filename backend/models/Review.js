@@ -1,8 +1,5 @@
-// backend/models/Review.js
 const db = require("../config/database");
 const { randomUUID } = require("crypto");
-
-// keep this so the rest of your code doesn't have to change
 const uuidv4 = () => randomUUID();
 
 const Restaurant = require("./Restaurant");
@@ -23,9 +20,7 @@ class Review {
     return review;
   }
 
-  /**
-   * Create a review
-   */
+  // Create a review
   static async create(data) {
     if (!data.userId) throw new Error("userId is required");
     if (!data.restaurantId) throw new Error("restaurantId is required");
@@ -72,7 +67,7 @@ class Review {
 
     await this.ref().child(id).set(review);
 
-    // Update parent restaurant metadata atomically
+    // Update parent restaurant 
     await Restaurant.incrementCounters(data.restaurantId, {
       totalReviews: 1,
     });
@@ -83,9 +78,7 @@ class Review {
     return this._attachMethods(review);
   }
 
-  /**
-   * Fetch all reviews for a specific restaurant
-   */
+  // Fetch all reviews for a restaurant
   static async findByRestaurantId(restaurantId) {
     const snapshot = await this.ref()
       .orderByChild("restaurantId")
@@ -96,9 +89,7 @@ class Review {
     return Object.values(data).map((r) => this._attachMethods(r));
   }
 
-  /**
-   * Fetch all reviews user wrote
-   */
+  // Fetch reviews that user wrote
   static async findByUserId(userId) {
     const snapshot = await this.ref()
       .orderByChild("userId")
@@ -109,18 +100,14 @@ class Review {
     return Object.values(data).map((r) => this._attachMethods(r));
   }
 
-  /**
-   * Find a review by ID
-   */
+  // Find review by ID
   static async findById(id) {
     const snap = await this.ref().child(id).once("value");
     if (!snap.exists()) return null;
     return this._attachMethods(snap.val());
   }
 
-  /**
-   * Update review
-   */
+  // Update reviews
   static async update(id, updates) {
     const snap = await this.ref().child(id).once("value");
     if (!snap.exists()) return null;
@@ -168,9 +155,7 @@ class Review {
     return this._attachMethods(merged);
   }
 
-  /**
-   * Delete review
-   */
+  // Delete reviews
   static async delete(id) {
     const snap = await this.ref().child(id).once("value");
     if (!snap.exists()) return false;
@@ -190,9 +175,7 @@ class Review {
     return true;
   }
 
-  /**
-   * Atomic increment of helpfulCount
-   */
+  // Increment helpful count
   static async incrementHelpfulCount(id, delta = 1) {
     await this.ref()
       .child(id)
@@ -204,9 +187,7 @@ class Review {
       });
   }
 
-  /**
-   * Recalculate average rating for a restaurant
-   */
+  // Recalculate restaurant average rating
   static async _recalculateRestaurantRating(restaurantId) {
     const reviews = await this.findByRestaurantId(restaurantId);
     if (reviews.length === 0) {

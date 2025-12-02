@@ -195,8 +195,6 @@ router.get("/:id", async (req, res) => {
       });
     }
 
-    // For now this returns just the restaurant.
-    // Once Review is on Firebase, we can attach reviews here again.
     res.json({
       success: true,
       data: restaurant.toSafeObject(),

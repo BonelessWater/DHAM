@@ -1,12 +1,10 @@
-// backend/models/Discussion.js
 const db = require("../config/database");
 const { randomUUID } = require("crypto");
 
-// keep this so the rest of your code doesn't have to change
 const uuidv4 = () => randomUUID();
 
 
-// Allowed categories from your ENUM
+// Allowed categories
 const ALLOWED_CATEGORIES = [
   "question",
   "tip",
@@ -70,28 +68,20 @@ class Discussion {
     return discussion;
   }
 
-  /**
-   * Find a discussion by id
-   */
+  // Find discussion by id
   static async findById(id) {
     const snapshot = await this.ref().child(id).once("value");
     if (!snapshot.exists()) return null;
     return snapshot.val();
   }
 
-  /**
-   * Get all discussions
-   * (You could later add pagination/filtering here if needed)
-   */
+  // Get all discussions
   static async findAll() {
     const snapshot = await this.ref().once("value");
     const data = snapshot.val() || {};
     return Object.values(data);
   }
-
-  /**
-   * Find all discussions for a given restaurantId
-   */
+  // Find all discussions by resatuant id 
   static async findByRestaurantId(restaurantId) {
     const snapshot = await this.ref()
       .orderByChild("restaurantId")
@@ -102,9 +92,7 @@ class Discussion {
     return Object.values(data);
   }
 
-  /**
-   * Find all discussions for a given userId
-   */
+ // Find all discussion by user id
   static async findByUserId(userId) {
     const snapshot = await this.ref()
       .orderByChild("userId")
@@ -115,10 +103,7 @@ class Discussion {
     return Object.values(data);
   }
 
-  /**
-   * Update a discussion by id
-   * updates is a partial object of fields to change
-   */
+ // Update a discussion by id
   static async update(id, updates) {
     const existingSnap = await this.ref().child(id).once("value");
     if (!existingSnap.exists()) return null;
@@ -142,18 +127,15 @@ class Discussion {
     return merged;
   }
 
-  /**
-   * Delete a discussion by id
-   */
+  // Delete discussio by ID
   static async delete(id) {
     await this.ref().child(id).remove();
     return true;
   }
 
-  /**
-   * Increment counters atomically (e.g. viewCount, likeCount, replyCount)
-   * counters: { viewCount?: number, likeCount?: number, replyCount?: number }
-   */
+  // Increment counters atomically (e.g. viewCount, likeCount, replyCount)
+  // counters: { viewCount?: number, likeCount?: number, replyCount?: number }
+   
   static async incrementCounters(id, counters = {}) {
     const ref = this.ref().child(id);
 

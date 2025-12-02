@@ -58,7 +58,7 @@ router.get("/restaurant/:restaurantId", async (req, res) => {
 
     const paged = reviews.slice(offsetNum, offsetNum + limitNum);
 
-    // Attach user info similar to original include: { model: User, as: 'user', ... }
+    // Attach user info similar to original
     const result = [];
     for (const r of paged) {
       const user = await User.findById(r.userId);
@@ -102,7 +102,7 @@ router.get("/user/:userId", async (req, res) => {
       return db - da;
     });
 
-    // Attach restaurant info similar to original include
+    // Attach restaurant info similar to original
     const result = [];
     for (const r of reviews) {
       const restaurant = await Restaurant.findById(r.restaurantId);

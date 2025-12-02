@@ -1,8 +1,6 @@
-// backend/models/Favorite.js
 const db = require("../config/database");
 const { randomUUID } = require("crypto");
 
-// keep this so the rest of your code doesn't have to change
 const uuidv4 = () => randomUUID();
 
 
@@ -19,9 +17,7 @@ class Favorite {
     return fav;
   }
 
-  /**
-   * Create a favorite
-   */
+  // Create a new favorite restaurant 
   static async create({ userId, restaurantId, notes }) {
     if (!userId || !restaurantId) {
       throw new Error("userId and restaurantId are required");
@@ -49,9 +45,7 @@ class Favorite {
     return this._attachMethods(favorite);
   }
 
-  /**
-   * Get all favorites for a user
-   */
+  // Get all favorites for a user
   static async findByUserId(userId) {
     const snapshot = await this.ref()
       .orderByChild("userId")
@@ -62,9 +56,7 @@ class Favorite {
     return Object.values(data).map((f) => this._attachMethods(f));
   }
 
-  /**
-   * Get all favorites for a restaurant
-   */
+  // Get all favorites for a restaurant
   static async findByRestaurantId(restaurantId) {
     const snapshot = await this.ref()
       .orderByChild("restaurantId")
@@ -75,9 +67,7 @@ class Favorite {
     return Object.values(data).map((f) => this._attachMethods(f));
   }
 
-  /**
-   * Find favorite by user + restaurant (for duplicates / check endpoint)
-   */
+  // Find favorite by userId and restaurantId
   static async findByUserAndRestaurant(userId, restaurantId) {
     const favs = await this.findByUserId(userId);
     return favs.find((f) => f.restaurantId === restaurantId) || null;
